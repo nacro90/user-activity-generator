@@ -4,7 +4,9 @@ unittest:
 typecheck:
 	mypy -p src -p test
 
-format:	isort
+format:	isort	black
+	
+black:	
 	find . -name '*.py' -a \! -path '*/\.*' | xargs black
 
 isort:
