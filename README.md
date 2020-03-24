@@ -1,9 +1,4 @@
-# Generating Fake User Activities Using GAN
+# User Activity Generator
 
-## Installation
+> Generating fake user smartphone sensor data values using GAN and some other cool architectures
 
-The project has been built on _pipenv_. In order to run or contribute to the
-project you have to have _pipenv_ in your system.
-
-After cloning, just execute `pipenv run ...` in the project directory to see
-the results.
