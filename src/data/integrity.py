@@ -1,8 +1,8 @@
 """
 File: integrity.py
-Author: yourname
-Email: yourname@email.com
-Github: https://github.com/yourname
+Author: Orcan Tiryakioglu
+Email: orcan.tiryakioglu@gmail.com
+Github: https://github.com/nacro90
 Description: Checks the integrity of the data using hashes
 """
 
