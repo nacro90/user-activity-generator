@@ -13,24 +13,17 @@ from typing import Any
 
 def recursive_sha256(path: Path, hashsum: Any = None) -> str:
     """
-    Calculates sha256 hash of the file contents recursively
+    Calculates sha256 hash of the file contents recursively.
 
-    Parameters
-    ----------
-        path : Path
-            Parent path of contents
-        hashsum : hashlib._HASH = None
-            Current checksum of files if any
+    Args:
+        path (Path): Parent path of contents
+        hashsum (Optional[hashlib._HASH]): Current checksum of files if any
 
-    Returns
-    -------
-    str
-        Accumulated digest hex number string
+    Returns:
+        str: Accumulated digest hex number string
 
-    Raises
-    ------
-    ValueError
-        When `path` does not exist in the system
+    Raises:
+        ValueError: When `path` does not exist in the system
     """
     if not path.exists():
         raise ValueError("Path does not exist")
