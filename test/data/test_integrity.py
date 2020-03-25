@@ -46,6 +46,18 @@ class FileTreeIntegrityTest(unittest.TestCase):
         remove_recursively(Path(self.temp_parent_path))
 
 
+class FailNonExistantPath(unittest.TestCase):
+    def setUp(self) -> None:
+        # Non-existant path
+        self.path = Path(
+            "03E93AAE89012A2B06B77D5684F34BC2E27CD64E42108175338F20BEC11C770"
+        )
+
+    def test_with_non_existant_path(self) -> None:
+        with self.assertRaises(ValueError):
+            recursive_sha256(self.path)
+
+
 def remove_recursively(path: Path) -> None:
     if path.is_dir():
         for node in path.iterdir():
