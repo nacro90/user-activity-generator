@@ -20,7 +20,8 @@ def recursive_sha256(path: Path, hashsum: Any = None) -> str:
         hashsum (Optional[hashlib._HASH]): Current checksum of files if any
 
     Returns:
-        str: Accumulated digest hex number string
+        str: Accumulated digest hex number string with lowercase letters like
+            "03e93aae89012a2b06b77d5684f34bc2e27cd64e42108175338f20bec11c770a"
 
     Raises:
         ValueError: When `path` does not exist in the system
