@@ -10,6 +10,11 @@ class Maker(ABC, Sized):
 
     @property
     @abstractmethod
+    def out_file(self) -> Path:
+        pass
+
+    @property
+    @abstractmethod
     def hash(self) -> str:
         pass
 
