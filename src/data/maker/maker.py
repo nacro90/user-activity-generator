@@ -31,6 +31,13 @@ class Maker(ABC, Sized):
         pass
 
     def convert(self) -> None:
-        self.pre()
+        print("\nConverting from raw dataset format to interim\n")
+        print("Interim path: {}\nHash: {}".format(self.out_path, self.hash))
+        if self.pre():
+            print("Dataset already processed, skipping this step...")
+            return
+        print("Starting to convert. This can take a while...")
         self.make()
+        print("Conversion completed. Dumping to converted data to {}".format(self.out_file.absolute()))
         self.post()
+        print("Dump finished. Created interim successfull")
