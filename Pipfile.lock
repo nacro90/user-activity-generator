@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "50c8346a69e8bfcc10bb6e814f7b0f0d3da695ddfa7a3f2ea2dd9303fbd3dfae"
+            "sha256": "3050ac59c8abfe2ce7d7e942584db452a7ef3a8836e96e8e4669b9ba09e83014"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -120,6 +120,13 @@
                 "sha256:fe51b79da0062f8e9d49ed0182a626a7dc7a0cbca0328f612c6ee5e4711c81e4"
             ],
             "version": "==1.1.0"
+        },
+        "liac-arff": {
+            "hashes": [
+                "sha256:47afcd1fd248b2892f66075987422d0576fc2c2fd0811d0cbd32f2135b065df5"
+            ],
+            "index": "pypi",
+            "version": "==2.4.0"
         },
         "matplotlib": {
             "hashes": [
