@@ -10,8 +10,8 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_ENCODING = "UTF-8"
+
 
 def recursive_sha256(path: Path, hashsum: Any = None) -> str:
     """
