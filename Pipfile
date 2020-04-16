@@ -15,6 +15,7 @@ keras = "*"
 matplotlib = "*"
 pandas = "*"
 liac-arff = "*"
+pyarrow = "*"
 
 [requires]
 python_version = "3.8"
