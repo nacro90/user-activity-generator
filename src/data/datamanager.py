@@ -1,4 +1,4 @@
-import os
+from ..config import Config
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, ClassVar, Literal, TypeVar
@@ -13,9 +13,6 @@ from .filetype import FileType
 
 
 class DataManager:
-
-    INTERIM_ROOT: ClassVar[Path] = Path(os.environ["INTERIM_ROOT"])
-    HASH_LENGTH: ClassVar[int] = int(os.environ["HASH_LENGTH"])
 
     def __init__(self, dataset: Dataset) -> None:
         self.dataset = dataset
@@ -58,5 +55,5 @@ class DataManager:
     @property
     def path(self) -> Path:
         return Path(
-            DataManager.INTERIM_ROOT / self.dataset.hash[: DataManager.HASH_LENGTH]
+            Config.INTERIM_ROOT / self.dataset.hash[: Config.HASH_LENGTH]
         )

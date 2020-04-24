@@ -1,0 +1,7 @@
+[config]
+interim-root = "data/interim"
+hash-length = 10
+
+[dataset]
+wisdm = "/home/orcan/dataset/wisdm/WISDM_ar_v1.1_raw_nondelim.csv"
+
