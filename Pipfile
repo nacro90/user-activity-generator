@@ -9,12 +9,12 @@ mypy = "*"
 black = "*"
 python-language-server = "*"
 isort = "*"
+ipython = "*"
 
 [packages]
 keras = "*"
 matplotlib = "*"
 pandas = "*"
-liac-arff = "*"
 
 [requires]
 python_version = "3.8"

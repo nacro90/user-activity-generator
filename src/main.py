@@ -15,7 +15,7 @@ def main() -> None:
     dataset = Wisdm(WISDM_PATH)
     data_manager = DataManager(dataset)
 
-    print(data_manager.read().dtypes)
+    print(data_manager.read_schema())
 
 
 if __name__ == "__main__":
