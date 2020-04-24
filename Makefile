@@ -1,7 +1,9 @@
+.PHONY: run test clean tags
+
 run:
 	pipenv run python -m src.main
 
-unittest:
+test:
 	pipenv run python -m unittest discover
 
 typecheck:
@@ -15,8 +17,10 @@ black:
 isort:
 	pipenv run isort --skip-glob=.tox --recursive .
 
-clean-mypy:
-	rm --force --recursive .mypy_cache/
+clean:
+	rm --recursive --force ./tags && \
+		rm --force --recursive .mypy_cache/
 
 tags:
-	rm -f ./tags; ctags -R --exclude=data/interim --exclude=.git --exclude=.mypy_cache --exclude=.undodir .
+	rm --force ./tags && \
+		ctags -R --exclude=data/interim --exclude=.git --exclude=.mypy_cache --exclude=.undodir .
