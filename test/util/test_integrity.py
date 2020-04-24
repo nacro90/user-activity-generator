@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 
-from src.data.integrity import *
+from src.util.integrity import *
 
 
 class SingleFileIntegrityTest(unittest.TestCase):

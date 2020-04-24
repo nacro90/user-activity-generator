@@ -1,3 +1,6 @@
+run:
+	pipenv run python -m src.main
+
 unittest:
 	pipenv run python -m unittest discover
 
@@ -15,5 +18,5 @@ isort:
 clean-mypy:
 	rm --force --recursive .mypy_cache/
 
-run:
-	pipenv run python -m src.main
+tags:
+	rm -f ./tags; ctags -R --exclude=data/interim --exclude=.git --exclude=.mypy_cache --exclude=.undodir .
