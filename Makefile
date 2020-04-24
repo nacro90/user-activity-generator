@@ -21,6 +21,9 @@ clean:
 	rm --recursive --force ./tags && \
 		rm --force --recursive .mypy_cache/
 
+invalidate-data:
+	rm --recursive --force ./data/interim/*
+
 tags:
 	rm --force ./tags && \
 		ctags -R --exclude=data/interim --exclude=.git --exclude=.mypy_cache --exclude=.undodir .

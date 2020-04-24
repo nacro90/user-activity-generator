@@ -1,10 +1,12 @@
 import os
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import ClassVar, Literal, TypeVar
+from typing import Any, ClassVar, Literal, TypeVar
 
-from pandas import DataFrame, read_parquet
-from pyarrow import Table, parquet
+import pandas
+import pyarrow
+from pandas import DataFrame
+from pyarrow.parquet import ParquetFile, ParquetSchema
 
 from .dataset import Dataset
 from .filetype import FileType
@@ -13,33 +15,45 @@ from .filetype import FileType
 class DataManager:
 
     INTERIM_ROOT: ClassVar[Path] = Path(os.environ["INTERIM_ROOT"])
-
     HASH_LENGTH: ClassVar[int] = int(os.environ["HASH_LENGTH"])
 
     def __init__(self, dataset: Dataset) -> None:
         self.dataset = dataset
 
-    def convert_dataset(self) -> None:
+    def generate_features(self, raw: DataFrame) -> None:
+        if self.dataset.generators:
+            for gen_key, gen_function in self.dataset.generators.items():
+                raw.insert(len(raw.columns), gen_key, gen_function(raw))
+
+    def convert_dataset(self) -> DataFrame:
         print(f"Converting raw to interim: {self.path}")
-        self.dataset.read().to_parquet(self.path)
+        self.delete_interim()
+        raw_dataframe = self.dataset.read()
+        self.generate_features(raw_dataframe)
+        raw_dataframe.to_parquet(self.path)
+        return raw_dataframe
 
-    def read(self) -> DataFrame:
-        return read_parquet(self.path)
-
-    def read_meta(self) -> DataFrame:
-        if self.need_raw():
+    def read(self, clean: bool = False) -> DataFrame:
+        if clean or self.is_interim_dirty():
             self.convert_dataset()
-        # TODO
+        return pandas.read_parquet(self.path, columns=self.dataset.columns)
 
-    def need_raw(self) -> bool:
-        if self.path.exists() and not self.has_missing_features():
-            print("Interim exists")
-            return False
-        return True
+    def get_data(self) -> Any:
+        pass # TODO
 
-    def has_missing_features(self) -> Literal[False]:
-        return False
-        #  self.dataset.generators.keys()
+    def read_schema(self) -> ParquetSchema:
+        return ParquetFile(self.path).schema
+
+    def is_interim_dirty(self) -> bool:
+        return not self.path.exists() or self.any_missing_features()
+
+    def any_missing_features(self) -> bool:
+        interim_cols = self.read_schema().names
+        raw_cols = self.dataset.columns.keys()
+        return any([col not in interim_cols for col in raw_cols])
+
+    def delete_interim(self) -> None:
+        self.path.unlink(True)
 
     @property
     def path(self) -> Path:
