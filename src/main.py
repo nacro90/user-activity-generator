@@ -1,12 +1,11 @@
-import os
+import toml
 from pathlib import Path
 
 from .data.datamanager import DataManager
 from .data.dataset import Wisdm
 
-WISDM_PATH = Path(os.environ["DATASET_WISDM"])
-INTERIM_ROOT = Path(os.environ["INTERIM_ROOT"])
-
+datasets = toml.load("config.toml")["dataset"]
+WISDM_PATH = Path(datasets["wisdm"])
 
 def main() -> None:
     #  wisdm_maker = WisdmMaker(WISDM_ROOT_PATH, INTERIM_ROOT)
