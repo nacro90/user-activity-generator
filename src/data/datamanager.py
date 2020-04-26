@@ -1,19 +1,19 @@
-from ..config import Config
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, ClassVar, Literal, TypeVar
 
 import pandas
-import pyarrow
 from pandas import DataFrame
+
+import pyarrow
 from pyarrow.parquet import ParquetFile, ParquetSchema
 
+from ..config import Config
 from .dataset import Dataset
 from .filetype import FileType
 
 
 class DataManager:
-
     def __init__(self, dataset: Dataset) -> None:
         self.dataset = dataset
 
@@ -36,7 +36,7 @@ class DataManager:
         return pandas.read_parquet(self.path, columns=self.dataset.columns)
 
     def get_data(self) -> Any:
-        pass # TODO
+        pass  # TODO
 
     def read_schema(self) -> ParquetSchema:
         return ParquetFile(self.path).schema
@@ -54,6 +54,4 @@ class DataManager:
 
     @property
     def path(self) -> Path:
-        return Path(
-            Config.INTERIM_ROOT / self.dataset.hash[: Config.HASH_LENGTH]
-        )
+        return Path(Config.INTERIM_ROOT / self.dataset.hash[: Config.HASH_LENGTH])
