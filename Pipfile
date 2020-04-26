@@ -17,6 +17,7 @@ keras = "*"
 matplotlib = "*"
 pandas = "*"
 toml = "*"
+plotly = "*"
 
 [requires]
 python_version = "3.8"
