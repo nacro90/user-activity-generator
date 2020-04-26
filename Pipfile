@@ -10,6 +10,7 @@ black = "*"
 python-language-server = {extras = ["rope"],version = "*"}
 isort = "*"
 ipython = "*"
+flake8 = "*"
 
 [packages]
 keras = "*"

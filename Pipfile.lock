@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "efc9f434fcad4299f885c9c67e9d8daa2cea7ca93314c46bb78d6c82429b865c"
+            "sha256": "b557536bffb0ce9541ef9346db0886cd45f852d3d4eae2ca731f6dca575c2e26"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -291,6 +291,14 @@
             ],
             "version": "==4.4.2"
         },
+        "flake8": {
+            "hashes": [
+                "sha256:c09e7e4ea0d91fa36f7b8439ca158e592be56524f0b67c39ab0ea2b85ed8f9a4",
+                "sha256:f33c5320eaa459cdee6367016a4bf4ba2a9b81499ce56e6a32abbf0b8d3a2eb4"
+            ],
+            "index": "pypi",
+            "version": "==3.8.0a2"
+        },
         "greenlet": {
             "hashes": [
                 "sha256:000546ad01e6389e98626c1367be58efa613fa82a1be98b0c6fc24b563acc6d0",
@@ -347,6 +355,13 @@
                 "sha256:e909527104a903606dd63bea6e8e888833f0ef087057829b89a18364a856f807"
             ],
             "version": "==0.15.2"
+        },
+        "mccabe": {
+            "hashes": [
+                "sha256:ab8a6258860da4b6677da4bd2fe5dc2c659cff31b3ee4f7f5d64e79735b80d42",
+                "sha256:dd8d182285a0fe56bace7f45b5e7d1a6ebcbf524e8f3bd87eb0f125271b8831f"
+            ],
+            "version": "==0.6.1"
         },
         "msgpack": {
             "hashes": [
@@ -447,6 +462,20 @@
                 "sha256:d7cc528d76e76342423ca640335bd3633420dc1366f258cb31d05e865ef5ca1f"
             ],
             "version": "==0.6.0"
+        },
+        "pycodestyle": {
+            "hashes": [
+                "sha256:933bfe8d45355fbb35f9017d81fc51df8cb7ce58b82aca2568b870bf7bea1611",
+                "sha256:c1362bf675a7c0171fa5f795917c570c2e405a97e5dc473b51f3656075d73acc"
+            ],
+            "version": "==2.6.0a1"
+        },
+        "pyflakes": {
+            "hashes": [
+                "sha256:0d94e0e05a19e57a99444b6ddcf9a6eb2e5c68d3ca1e98e90707af8152c90a92",
+                "sha256:35b2d75ee967ea93b55750aa9edbbf72813e06a66ba54438df2cfac9e3c27fc8"
+            ],
+            "version": "==2.2.0"
         },
         "pygments": {
             "hashes": [
