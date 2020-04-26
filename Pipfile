@@ -7,7 +7,7 @@ verify_ssl = true
 pynvim = "*"
 mypy = "*"
 black = "*"
-python-language-server = "*"
+python-language-server = {extras = ["rope"],version = "*"}
 isort = "*"
 ipython = "*"
 
