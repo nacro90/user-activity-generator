@@ -6,6 +6,8 @@ run:
 test:
 	pipenv run python -m unittest discover
 
+check:	typecheck	lint
+
 typecheck:
 	pipenv run mypy -p src -p test
 
@@ -16,6 +18,9 @@ black:
 
 isort:
 	pipenv run isort --skip-glob=.tox --recursive .
+
+lint:
+	flake8 ./src
 
 clean:
 	rm --recursive --force ./tags && \
