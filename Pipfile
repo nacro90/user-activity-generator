@@ -11,6 +11,7 @@ python-language-server = {extras = ["rope"],version = "*"}
 isort = "*"
 ipython = "*"
 flake8 = "*"
+jupyterlab = "*"
 
 [packages]
 keras = "*"
@@ -18,7 +19,6 @@ matplotlib = "*"
 pandas = "*"
 toml = "*"
 plotly = "*"
-pyarrow = "*"
 
 [requires]
 python_version = "3.8"
