@@ -1,11 +1,10 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, ClassVar, Literal, TypeVar
+from typing import Any, ClassVar, List, Literal, TypeVar
 
 import pandas
-from pandas import DataFrame
-
 import pyarrow
+from pandas import DataFrame
 from pyarrow.parquet import ParquetFile, ParquetSchema
 
 from ..config import Config
@@ -30,10 +29,12 @@ class DataManager:
         raw_dataframe.to_parquet(self.path)
         return raw_dataframe
 
-    def read(self, clean: bool = False) -> DataFrame:
+    def read(self, columns: List[str] = None, clean: bool = False) -> DataFrame:
         if clean or self.is_interim_dirty():
             self.convert_dataset()
-        return pandas.read_parquet(self.path, columns=self.dataset.columns)
+        return pandas.read_parquet(
+            self.path, columns=columns if columns else list(self.dataset.columns.keys())
+        )
 
     def get_data(self) -> Any:
         pass  # TODO
