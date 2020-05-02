@@ -1,3 +1,4 @@
+import random
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, ClassVar, List, Literal, Optional, Sequence, Set, Tuple
@@ -75,6 +76,8 @@ class DataManager:
         stride: Optional[int] = None,
         subjects: Optional[Set[int]] = None,
         clean: bool = False,
+        shuffle: bool = False,
+        seed: Optional[int] = None,
     ) -> DataFrame:
         stride = stride if stride else window
         data = self.read(clean=clean)
@@ -90,6 +93,10 @@ class DataManager:
                 [self.dataset.TRIAL_COLUMN, self.dataset.SUBJECT_COLUMN]
             )
         ]
+        if shuffle:
+            if seed:
+                random.seed(seed)
+            random.shuffle(dataframes)
         return Windows(dataframes, window, stride)
 
     def read_schema(self) -> ParquetSchema:
