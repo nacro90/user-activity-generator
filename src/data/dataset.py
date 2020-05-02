@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from math import sqrt
 from pathlib import Path
-from typing import Callable, Dict, Optional, Type, ClassVar, Tuple
+from typing import Callable, ClassVar, Dict, Optional, Tuple, Type
 
 import pandas
 from pandas import DataFrame, Series
