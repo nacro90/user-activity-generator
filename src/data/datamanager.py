@@ -24,14 +24,14 @@ class Windows(Sequence[DataFrame]):
         if type(key) is not int:
             raise ValueError(f"`key` must be an integer: key = {key}")
         i = 0
-        len_df = len(self.dataframes[i])
+        len_df = self.len_of_dataframe(self.dataframes[i])
         while key > len_df:
             key -= len_df
             i += 1
-            len_df = len(self.dataframes[i])
+            len_df = self.len_of_dataframe(self.dataframes[i])
         return self.dataframes[i].iloc[
             key * self.stride : key * self.stride + self.window
-        ]
+        ].reset_index()
 
     def __len__(self) -> int:
         return sum(self.len_of_dataframe(df) for df in self.dataframes)
