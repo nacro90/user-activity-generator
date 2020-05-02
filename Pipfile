@@ -7,8 +7,7 @@ verify_ssl = true
 pynvim = "*"
 mypy = "*"
 black = "*"
-python-language-server = {extras = ["rope"],version = "*"}
-isort = "*"
+python-language-server = "*"
 ipython = "*"
 flake8 = "*"
 jupyterlab = "*"

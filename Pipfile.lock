@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "42fd4933c739be8139ce67cf659df53eb9a3c71756ed2a66222d6b5805639fd8"
+            "sha256": "2b3450a0248d1ea800f6607d53bf6f06d42b9ab8bd2dea1a333910952be5ac67"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -398,11 +398,11 @@
         },
         "ipython": {
             "hashes": [
-                "sha256:ca478e52ae1f88da0102360e57e528b92f3ae4316aabac80a2cd7f7ab2efb48a",
-                "sha256:eb8d075de37f678424527b5ef6ea23f7b80240ca031c2dd6de5879d687a65333"
+                "sha256:5b241b84bbf0eb085d43ae9d46adf38a13b45929ca7774a740990c2c242534bb",
+                "sha256:f0126781d0f959da852fb3089e170ed807388e986a8dd4e6ac44855845b0fb1c"
             ],
             "index": "pypi",
-            "version": "==7.13.0"
+            "version": "==7.14.0"
         },
         "ipython-genutils": {
             "hashes": [
@@ -410,14 +410,6 @@
                 "sha256:eb2e116e75ecef9d4d228fdc66af54269afa26ab4463042e33785b887c628ba8"
             ],
             "version": "==0.2.0"
-        },
-        "isort": {
-            "hashes": [
-                "sha256:54da7e92468955c4fceacd0c86bd0ec997b0e1ee80d97f67c35a78b719dccab1",
-                "sha256:6e811fcb295968434526407adb8796944f1988c5b65e8139058f2014cbe100fd"
-            ],
-            "index": "pypi",
-            "version": "==4.3.21"
         },
         "jedi": {
             "hashes": [
@@ -735,9 +727,6 @@
             "version": "==0.3.4"
         },
         "python-language-server": {
-            "extras": [
-                "rope"
-            ],
             "hashes": [
                 "sha256:20a24b4793b804b81c72fe076bd269f2db8cb81f91579c4892602ab02f1a3d62",
                 "sha256:6c96567158377a0c725625ef6e24e7b655dcfab95080b463023b6680d1766d4f"
@@ -810,14 +799,6 @@
                 "sha256:b3f43d496c6daba4493e7c431722aeb7dbc6288f52a6e04e7b6023b0247817e6"
             ],
             "version": "==2.23.0"
-        },
-        "rope": {
-            "hashes": [
-                "sha256:52423a7eebb5306a6d63bdc91a7c657db51ac9babfb8341c9a1440831ecf3203",
-                "sha256:ae1fa2fd56f64f4cc9be46493ce54bed0dd12dee03980c61a4393d89d84029ad",
-                "sha256:d2830142c2e046f5fc26a022fe680675b6f48f81c7fc1f03a950706e746e9dfe"
-            ],
-            "version": "==0.16.0"
         },
         "send2trash": {
             "hashes": [
