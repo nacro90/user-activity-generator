@@ -22,8 +22,12 @@ class Activity(Enum):
 
 
 class Dataset(ABC):
+    ACTIVITY_COLUMN: ClassVar[str] = NotImplemented
     ACTIVITIES: ClassVar[Dict[Activity, str]] = NotImplemented
     COLUMNS: ClassVar[Dict[str, Reader.DataType]] = NotImplemented
+    FREQUENCY: ClassVar[int] = NotImplemented
+    TRIAL_COLUMN: ClassVar[str] = NotImplemented
+    SUBJECT_COLUMN: ClassVar[str] = NotImplemented
 
     @classmethod
     @abstractmethod
@@ -62,6 +66,10 @@ class Wisdm(Dataset):
         Activity.STANDING: "Standing",
     }
 
+    ACTIVITY_COLUMN = "activity"
+    TRIAL_COLUMN = "trial"
+    SUBJECT_COLUMN = "subject"
+
     COLUMNS = {
         "user": Reader.DataType.CATEGORY,
         "activity": Reader.DataType.CATEGORY,
@@ -75,6 +83,8 @@ class Wisdm(Dataset):
         "zaccel_norm": Reader.DataType.FLOAT64,
         "magnitude_norm": Reader.DataType.FLOAT64,
     }
+
+    FREQUENCY = 20
 
     @classmethod
     def generators(cls) -> Optional[Dict[str, Callable[[DataFrame], Series]]]:
@@ -138,6 +148,13 @@ class MotionSense(Dataset):
         "magnitude_norm": Reader.DataType.FLOAT64,
     }
 
+    FREQUENCY = 50
+
+    ACTIVITY_COLUMN = "activity"
+
+    SUBJECT_COLUMN = "subject"
+    TRIAL_COLUMN = "trial"
+
     @classmethod
     def generators(cls) -> Dict[str, Callable[[DataFrame], Series]]:
         def magnitude(df: DataFrame) -> Series:
@@ -165,7 +182,7 @@ class MotionSense(Dataset):
         pandas_columns = {
             name: type_enum.value for name, type_enum in self.COLUMNS.items()
         }
-        concated = None
+        concated = DataFrame(columns=pandas_columns)
         for folder in self.path.iterdir():
             activity, trial = self.split_activity_and_trial(folder.name)
             for file in folder.iterdir():
@@ -174,8 +191,9 @@ class MotionSense(Dataset):
                 df["subject"] = self.strip_subject_no(file.name)
                 df["trial"] = trial
                 df["activity"] = activity
-                pandas.concat((df, concated))
-        return df.astype(pandas_columns)
+                concated = pandas.concat((concated, df))
+
+        return concated.astype(pandas_columns)
 
     def strip_subject_no(self, fname: str) -> int:
         return int(fname.split("_")[1].split(".")[0])

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, ClassVar, List, Literal, TypeVar
+from typing import Any, ClassVar, List, Literal, TypeVar, Optional, Set
 
 import pandas
 import pyarrow
@@ -8,7 +8,7 @@ from pandas import DataFrame
 from pyarrow.parquet import ParquetFile, ParquetSchema
 
 from ..config import Config
-from .dataset import Dataset
+from .dataset import Dataset, Activity
 from .filetype import FileType
 
 
@@ -38,12 +38,29 @@ class DataManager:
             self.path, columns=columns if columns else list(self.dataset.COLUMNS.keys())
         )
 
-    def get_data(self) -> Any:
-        pass  # TODO
+    def stream(
+        self,
+        activities: Set[Activity],
+        window: int,
+        stride: Optional[int] = None,
+        subjects: Optional[Set[int]] = None,
+        clean: bool = False,
+    ) -> DataFrame:
+        stride = stride if stride else window
+        data = self.read(clean=clean)
+        activity_keys = [self.dataset.ACTIVITIES[activity] for activity in activities]
+        filtered = data.loc[data[self.dataset.ACTIVITY_COLUMN].isin(activity_keys)]
+        if subjects:
+            filtered = filtered.loc[
+                filtered[self.dataset.SUBJECT_COLUMN].isin(subjects)
+            ]
+        for _, data in filtered.groupby(
+            [self.dataset.TRIAL_COLUMN, self.dataset.SUBJECT_COLUMN]
+        ):
+            for i in range((len(filtered) - window) // stride):
+                yield filtered.iloc[i * stride : i * stride + window]
 
     def read_schema(self) -> ParquetSchema:
-        if self.is_interim_dirty():
-            self.convert_dataset()
         return ParquetFile(self.path).schema
 
     def is_interim_dirty(self) -> bool:
@@ -55,7 +72,8 @@ class DataManager:
         return any([col not in interim_cols for col in raw_cols])
 
     def delete_interim(self) -> None:
-        self.path.unlink(True)
+        if self.path.exists():
+            self.path.unlink()
 
     @property
     def path(self) -> Path:

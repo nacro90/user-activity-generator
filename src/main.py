@@ -3,7 +3,7 @@ from pathlib import Path
 import toml
 
 from .data.datamanager import DataManager
-from .data.dataset import Wisdm, MotionSense
+from .data.dataset import Wisdm, MotionSense, Activity
 
 datasets = toml.load("config.toml")["dataset"]
 WISDM_PATH = Path(datasets["wisdm"])
@@ -17,7 +17,7 @@ def main() -> None:
     dataset = MotionSense(MOTION_SENSE_PATH)
     data_manager = DataManager(dataset)
 
-    print(data_manager.read_schema())
+    return data_manager.stream({Activity.WALKING}, dataset.FREQUENCY * 2)
 
 
 if __name__ == "__main__":
