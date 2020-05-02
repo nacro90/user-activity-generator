@@ -3,7 +3,7 @@ from pathlib import Path
 import toml
 
 from .data.datamanager import DataManager
-from .data.dataset import Wisdm, MotionSense, Activity
+from .data.dataset import Activity, MotionSense, Wisdm
 
 datasets = toml.load("config.toml")["dataset"]
 WISDM_PATH = Path(datasets["wisdm"])
