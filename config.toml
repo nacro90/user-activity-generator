@@ -4,4 +4,5 @@ hash-length = 10
 
 [dataset]
 wisdm = "/home/orcan/dataset/wisdm/WISDM_ar_v1.1_raw_nondelim.csv"
+motion-sense = "/home/orcan/dataset/motion-sense/A_DeviceMotion_data"
 

@@ -17,15 +17,17 @@ class DataManager:
         self.dataset = dataset
 
     def generate_features(self, raw: DataFrame) -> None:
-        if self.dataset.generators:
-            for gen_key, gen_function in self.dataset.generators.items():
-                raw.insert(len(raw.columns), gen_key, gen_function(raw))
+        generators = self.dataset.generators()
+        if generators:
+            for gen_key, gen_function in generators.items():
+                raw[gen_key] = gen_function(raw)
 
     def convert_dataset(self) -> DataFrame:
         print(f"Converting raw to interim: {self.path}")
         self.delete_interim()
         raw_dataframe = self.dataset.read()
         self.generate_features(raw_dataframe)
+        self.path.parent.mkdir(0o755, parents=True, exist_ok=True)
         raw_dataframe.to_parquet(self.path)
         return raw_dataframe
 
@@ -33,13 +35,15 @@ class DataManager:
         if clean or self.is_interim_dirty():
             self.convert_dataset()
         return pandas.read_parquet(
-            self.path, columns=columns if columns else list(self.dataset.columns.keys())
+            self.path, columns=columns if columns else list(self.dataset.COLUMNS.keys())
         )
 
     def get_data(self) -> Any:
         pass  # TODO
 
     def read_schema(self) -> ParquetSchema:
+        if self.is_interim_dirty():
+            self.convert_dataset()
         return ParquetFile(self.path).schema
 
     def is_interim_dirty(self) -> bool:
@@ -47,7 +51,7 @@ class DataManager:
 
     def any_missing_features(self) -> bool:
         interim_cols = self.read_schema().names
-        raw_cols = self.dataset.columns.keys()
+        raw_cols = self.dataset.COLUMNS.keys()
         return any([col not in interim_cols for col in raw_cols])
 
     def delete_interim(self) -> None:

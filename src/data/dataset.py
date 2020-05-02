@@ -2,8 +2,9 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from math import sqrt
 from pathlib import Path
-from typing import Callable, Dict, Optional, Type
+from typing import Callable, Dict, Optional, Type, ClassVar, Tuple
 
+import pandas
 from pandas import DataFrame, Series
 
 from ..util.integrity import recursive_sha256
@@ -11,31 +12,39 @@ from .filetype import Csv, FileType
 from .reader import CsvReader, Reader
 
 
+class Activity(Enum):
+    WALKING = 0
+    JOGGING = 1
+    UPSTAIRS = 2
+    DOWNSTAIRS = 3
+    SITTING = 4
+    STANDING = 5
+
+
 class Dataset(ABC):
-    def __init__(self, path: Path, file_type: Type[FileType]):
+    ACTIVITIES: ClassVar[Dict[Activity, str]] = NotImplemented
+    COLUMNS: ClassVar[Dict[str, Reader.DataType]] = NotImplemented
+
+    @classmethod
+    @abstractmethod
+    def generators(cls) -> Optional[Dict[str, Callable[[DataFrame], Series]]]:
+        raise NotImplementedError
+
+    @classmethod
+    def is_columns_valid(cls) -> bool:
+        generators = cls.generators()
+        if not generators:
+            return True
+        return all(gen_key in cls.COLUMNS.keys() for gen_key in generators.keys())
+
+    def __init__(self, path: Path):
         if not self.is_columns_valid():
             raise ValueError("All generator keys must be specified in column field")
         self.path = path
-        self.file_type = file_type
 
     @property
     def hash(self) -> str:
         return recursive_sha256(self.path)
-
-    def is_columns_valid(self) -> bool:
-        if not self.generators:
-            return True
-        return all(gen_key in self.columns.keys() for gen_key in self.generators.keys())
-
-    @property
-    @abstractmethod
-    def columns(self) -> Dict[str, Reader.DataType]:
-        pass
-
-    @property
-    @abstractmethod
-    def generators(self) -> Optional[Dict[str, Callable[[DataFrame], Series]]]:
-        pass
 
     @abstractmethod
     def read(self) -> DataFrame:
@@ -44,34 +53,31 @@ class Dataset(ABC):
 
 class Wisdm(Dataset):
 
-    USERS = set(range(1, 37))
+    ACTIVITIES = {
+        Activity.WALKING: "Walking",
+        Activity.JOGGING: "Jogging",
+        Activity.UPSTAIRS: "Upstairs",
+        Activity.DOWNSTAIRS: "Downstairs",
+        Activity.SITTING: "Sitting",
+        Activity.STANDING: "Standing",
+    }
 
-    def __init__(self, path: Path) -> None:
+    COLUMNS = {
+        "user": Reader.DataType.CATEGORY,
+        "activity": Reader.DataType.CATEGORY,
+        "timestamp": Reader.DataType.INT64,
+        "xaccel": Reader.DataType.FLOAT64,
+        "yaccel": Reader.DataType.FLOAT64,
+        "zaccel": Reader.DataType.FLOAT64,
+        "magnitude": Reader.DataType.FLOAT64,
+        "xaccel_norm": Reader.DataType.FLOAT64,
+        "yaccel_norm": Reader.DataType.FLOAT64,
+        "zaccel_norm": Reader.DataType.FLOAT64,
+        "magnitude_norm": Reader.DataType.FLOAT64,
+    }
 
-        Dataset.__init__(self, path, Csv)
-
-    def read(self) -> DataFrame:
-        reader = CsvReader(self.path)
-        return reader.read(self.columns)
-
-    @property
-    def columns(self) -> Dict[str, Reader.DataType]:
-        return {
-            "user": Reader.DataType.CATEGORY,
-            "activity": Reader.DataType.CATEGORY,
-            "timestamp": Reader.DataType.INT64,
-            "xaccel": Reader.DataType.FLOAT64,
-            "yaccel": Reader.DataType.FLOAT64,
-            "zaccel": Reader.DataType.FLOAT64,
-            "magnitude": Reader.DataType.FLOAT64,
-            "xaccel_norm": Reader.DataType.FLOAT64,
-            "yaccel_norm": Reader.DataType.FLOAT64,
-            "zaccel_norm": Reader.DataType.FLOAT64,
-            "magnitude_norm": Reader.DataType.FLOAT64,
-        }
-
-    @property
-    def generators(self) -> Dict[str, Callable[[DataFrame], Series]]:
+    @classmethod
+    def generators(cls) -> Optional[Dict[str, Callable[[DataFrame], Series]]]:
         def magnitude(df: DataFrame) -> Series:
             xacc = df["xaccel"]
             yacc = df["yaccel"]
@@ -90,10 +96,93 @@ class Wisdm(Dataset):
             "magnitude_norm": lambda df: normalize(magnitude(df)),
         }
 
-    class Activity(Enum):
-        WALKING = "Walking"
-        JOGGING = "Jogging"
-        UPSTAIRS = "Upstairs"
-        DOWNSTAIRS = "Downstairs"
-        SITTING = "Sitting"
-        STANDING = "Standing"
+    def __init__(self, path: Path) -> None:
+        Dataset.__init__(self, path)
+
+    def read(self) -> DataFrame:
+        reader = CsvReader(self.path)
+        return reader.read(self.COLUMNS)
+
+
+class MotionSense(Dataset):
+
+    ACTIVITIES = {
+        Activity.WALKING: "wlk",
+        Activity.JOGGING: "jog",
+        Activity.UPSTAIRS: "ups",
+        Activity.DOWNSTAIRS: "dws",
+        Activity.SITTING: "sit",
+        Activity.STANDING: "std",
+    }
+
+    COLUMNS = {
+        "subject": Reader.DataType.INT64,
+        "trial": Reader.DataType.INT64,
+        "activity": Reader.DataType.CATEGORY,
+        "attitude.roll": Reader.DataType.FLOAT64,
+        "attitude.pitch": Reader.DataType.FLOAT64,
+        "attitude.yaw": Reader.DataType.FLOAT64,
+        "gravity.x": Reader.DataType.FLOAT64,
+        "gravity.y": Reader.DataType.FLOAT64,
+        "gravity.z": Reader.DataType.FLOAT64,
+        "rotationRate.x": Reader.DataType.FLOAT64,
+        "rotationRate.y": Reader.DataType.FLOAT64,
+        "rotationRate.z": Reader.DataType.FLOAT64,
+        "userAcceleration.x": Reader.DataType.FLOAT64,
+        "userAcceleration.y": Reader.DataType.FLOAT64,
+        "userAcceleration.z": Reader.DataType.FLOAT64,
+        "magnitude": Reader.DataType.FLOAT64,
+        "xaccel_norm": Reader.DataType.FLOAT64,
+        "yaccel_norm": Reader.DataType.FLOAT64,
+        "zaccel_norm": Reader.DataType.FLOAT64,
+        "magnitude_norm": Reader.DataType.FLOAT64,
+    }
+
+    @classmethod
+    def generators(cls) -> Dict[str, Callable[[DataFrame], Series]]:
+        def magnitude(df: DataFrame) -> Series:
+            xacc = df["userAcceleration.x"]
+            yacc = df["userAcceleration.y"]
+            zacc = df["userAcceleration.z"]
+            euclidean = (xacc ** 2 + yacc ** 2 + zacc ** 2) ** 0.5
+            return Series(euclidean)
+
+        def normalize(series: Series) -> Series:
+            return Series((series - series.mean()) / (series.max() - series.min()))
+
+        return {
+            "magnitude": magnitude,
+            "xaccel_norm": lambda df: normalize(df["userAcceleration.x"]),
+            "yaccel_norm": lambda df: normalize(df["userAcceleration.y"]),
+            "zaccel_norm": lambda df: normalize(df["userAcceleration.z"]),
+            "magnitude_norm": lambda df: normalize(magnitude(df)),
+        }
+
+    def __init__(self, path: Path) -> None:
+        Dataset.__init__(self, path)
+
+    def read(self) -> DataFrame:
+        pandas_columns = {
+            name: type_enum.value for name, type_enum in self.COLUMNS.items()
+        }
+        concated = None
+        for folder in self.path.iterdir():
+            activity, trial = self.split_activity_and_trial(folder.name)
+            for file in folder.iterdir():
+                df = CsvReader(file).read(self.COLUMNS)
+                df.drop(columns="Unnamed: 0", inplace=True)
+                df["subject"] = self.strip_subject_no(file.name)
+                df["trial"] = trial
+                df["activity"] = activity
+                pandas.concat((df, concated))
+        return df.astype(pandas_columns)
+
+    def strip_subject_no(self, fname: str) -> int:
+        return int(fname.split("_")[1].split(".")[0])
+
+    def split_activity_and_trial(self, fname: str) -> Tuple[str, int]:
+        split = fname.split("_")
+        return split[0], int(split[1])
+
+        # reader = CsvReader(self.path)
+        # return reader.read(self.COLUMNS)

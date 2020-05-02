@@ -41,5 +41,15 @@ class CsvReader(Reader):
         Reader.__init__(self, path)
 
     def read(self, columns: Dict[str, Reader.DataType]) -> DataFrame:
-        columns = {name: type_enum.value for name, type_enum in columns.items()}
-        return read_csv(self.path, dtype=columns)
+        pandas_columns = {name: type_enum.value for name, type_enum in columns.items()}
+        df = read_csv(self.path, dtype=pandas_columns)
+        for key, datatype in columns.items():
+            if key not in df:
+                if datatype in {Reader.DataType.FLOAT64, Reader.DataType.INT64}:
+                    df[key] = 0
+                elif datatype in {Reader.DataType.CATEGORY, Reader.DataType.CATEGORY}:
+                    df[key] = ""
+                elif datatype == Reader.DataType.BOOL:
+                    df[key] = False
+
+        return df.astype(pandas_columns)
