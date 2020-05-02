@@ -29,9 +29,11 @@ class Windows(Sequence[DataFrame]):
             key -= len_df
             i += 1
             len_df = self.len_of_dataframe(self.dataframes[i])
-        return self.dataframes[i].iloc[
-            key * self.stride : key * self.stride + self.window
-        ].reset_index()
+        return (
+            self.dataframes[i]
+            .iloc[key * self.stride : key * self.stride + self.window]
+            .reset_index(drop=True)
+        )
 
     def __len__(self) -> int:
         return sum(self.len_of_dataframe(df) for df in self.dataframes)
