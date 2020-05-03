@@ -6,9 +6,10 @@ from plotly.subplots import make_subplots
 
 
 class VecData:
-    def __init__(self, df: DataFrame, columns: Tuple[str, str, str]):
+    def __init__(self, df: DataFrame, columns: Tuple[str, str, str], factor: float = 1):
         self.df = df.reset_index(drop=True)
         self.columns = columns
+        self.df[list(columns)] *= factor
 
     @property
     def x(self) -> Series:
@@ -27,7 +28,7 @@ class VecData:
         return self.df[list(self.columns)]
 
     def max_range(self, margin: float = 0) -> Tuple[float, float]:
-        return (self.df.min().min() - margin, self.df.max().max() + margin)
+        return (self.xyz.min().min() - margin, self.xyz.max().max() + margin)
 
     def x_range(self, margin: float = 0) -> Tuple[float, float]:
         return (self.x.min() - margin, self.x.max() + margin)
@@ -85,7 +86,7 @@ class Plotter:
         )
 
         self.figure.layout.title = (
-            f"{round(len(self.acc.df) / 20, 1)} Seconds of {action}"
+            f"{round(len(self.acc.df) / self.frequency, 1)} Seconds of {action}"
         )
 
         self.figure.add_trace(
@@ -240,7 +241,7 @@ class Plotter:
         )
 
         self.figure.layout.title = (
-            f"{round(len(self.acc.df) / 20, 1)} Seconds of {action}"
+            f"{round(len(self.acc.df) / self.frequency, 1)} Seconds of {action}"
         )
 
         self.figure.add_trace(

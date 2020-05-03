@@ -146,6 +146,12 @@ class MotionSense(Dataset):
         "yaccel_norm": Reader.DataType.FLOAT64,
         "zaccel_norm": Reader.DataType.FLOAT64,
         "magnitude_norm": Reader.DataType.FLOAT64,
+        "gravity.x.real": Reader.DataType.FLOAT64,
+        "gravity.y.real": Reader.DataType.FLOAT64,
+        "gravity.z.real": Reader.DataType.FLOAT64,
+        "userAcceleration.x.real": Reader.DataType.FLOAT64,
+        "userAcceleration.y.real": Reader.DataType.FLOAT64,
+        "userAcceleration.z.real": Reader.DataType.FLOAT64,
     }
 
     FREQUENCY = 50
@@ -167,12 +173,21 @@ class MotionSense(Dataset):
         def normalize(series: Series) -> Series:
             return Series((series - series.mean()) / (series.max() - series.min()))
 
+        def ms_squarize(series: Series) -> Series:
+            return series.multiply(10)
+
         return {
             "magnitude": magnitude,
             "xaccel_norm": lambda df: normalize(df["userAcceleration.x"]),
             "yaccel_norm": lambda df: normalize(df["userAcceleration.y"]),
             "zaccel_norm": lambda df: normalize(df["userAcceleration.z"]),
             "magnitude_norm": lambda df: normalize(magnitude(df)),
+            "gravity.x.real": lambda df: ms_squarize(df["gravity.x"]),
+            "gravity.y.real": lambda df: ms_squarize(df["gravity.y"]),
+            "gravity.z.real": lambda df: ms_squarize(df["gravity.z"]),
+            "userAcceleration.x.real": lambda df: ms_squarize(df["userAcceleration.x"]),
+            "userAcceleration.y.real": lambda df: ms_squarize(df["userAcceleration.y"]),
+            "userAcceleration.z.real": lambda df: ms_squarize(df["userAcceleration.z"]),
         }
 
     def __init__(self, path: Path) -> None:
