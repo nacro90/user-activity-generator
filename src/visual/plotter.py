@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-from typing import Iterator, Optional, Tuple
+from typing import ClassVar, Iterator, Optional, Tuple
 
 from pandas import DataFrame, Series
 from plotly.graph_objs import Figure, Frame, Scatter
@@ -55,7 +54,11 @@ class VecData:
 
 
 class Plotter:
-    POINT_SIZE = 20
+    POINT_SIZE: ClassVar[int] = 20
+    VERTICAL_SPACING: ClassVar[float] = 0.07
+    ACCELERATION_UNIT: ClassVar[str] = " m/s²"
+    TIME_UNIT: ClassVar[str] = " s"
+    POS_COLUMNS: ClassVar[Tuple[str, str, str]] = ("pos_x", "pos_y", "pos_z")
 
     def __init__(self, acc: VecData, frequency: float):
         self.acc = acc
@@ -77,7 +80,7 @@ class Plotter:
                     "Z Distance",
                 ]
             ),
-            vertical_spacing=0.07,
+            vertical_spacing=self.VERTICAL_SPACING,
             specs=[[{}, {}], [{}, {}], [{}, {}]],
         )
 
@@ -121,7 +124,7 @@ class Plotter:
         self.figure.update_yaxes(
             zeroline=True,
             zerolinewidth=3,
-            ticksuffix=" m/s²",
+            ticksuffix=self.ACCELERATION_UNIT,
             title_text="X",
             range=max_range,
             row=1,
@@ -130,7 +133,7 @@ class Plotter:
         self.figure.update_yaxes(
             zeroline=True,
             zerolinewidth=3,
-            ticksuffix=" m/s²",
+            ticksuffix=self.ACCELERATION_UNIT,
             title_text="Y",
             range=max_range,
             row=2,
@@ -139,7 +142,7 @@ class Plotter:
         self.figure.update_yaxes(
             zeroline=True,
             zerolinewidth=3,
-            ticksuffix=" m/s²",
+            ticksuffix=self.ACCELERATION_UNIT,
             title_text="Z",
             range=max_range,
             row=3,
@@ -150,7 +153,7 @@ class Plotter:
             col=1,
             zeroline=True,
             zerolinewidth=3,
-            ticksuffix=" s",
+            ticksuffix=self.TIME_UNIT,
             title_text="Time",
         )
 
@@ -219,7 +222,7 @@ class Plotter:
             col=2,
             zeroline=True,
             zerolinewidth=3,
-            ticksuffix=" s",
+            ticksuffix=self.TIME_UNIT,
             title_text="Time",
         )
 
@@ -382,8 +385,8 @@ class Plotter:
             c = coef if coef else 1
             return acc * c * (1 / frequency) ** 2
 
-        pos_columns = ("pos_x", "pos_y", "pos_z")
-        rename_dict = {col: new for col, new in zip(self.acc.columns, pos_columns)}
+        rename_dict = {col: new for col, new in zip(self.acc.columns, self.POS_COLUMNS)}
         return VecData(
-            self.acc.xyz.apply(dx).cumsum().rename(columns=rename_dict), pos_columns
+            self.acc.xyz.apply(dx).cumsum().rename(columns=rename_dict),
+            self.POS_COLUMNS,
         )
