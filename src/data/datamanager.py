@@ -6,6 +6,7 @@ from typing import Any, ClassVar, List, Literal, Optional, Sequence, Set, Tuple
 import numpy
 import pandas
 import pyarrow
+from keras.utils import Sequence as KerasSequence
 from keras.utils import to_categorical
 from pandas import DataFrame
 from pyarrow.parquet import ParquetFile, ParquetSchema
@@ -13,36 +14,7 @@ from pyarrow.parquet import ParquetFile, ParquetSchema
 from ..config import Config
 from .dataset import Activity, Dataset
 from .filetype import FileType
-
-
-class Windows(Sequence[DataFrame]):
-    def __init__(
-        self, dataframes: Sequence[DataFrame], window: int, stride: Optional[int] = None
-    ) -> None:
-        self.dataframes = dataframes
-        self.window = window
-        self.stride = stride if stride else 1
-
-    def __getitem__(self, key: Any) -> DataFrame:
-        if type(key) is not int:
-            raise ValueError(f"`key` must be an integer: key = {key}")
-        i = 0
-        len_df = self.len_of_dataframe(self.dataframes[i])
-        while key > len_df:
-            key -= len_df
-            i += 1
-            len_df = self.len_of_dataframe(self.dataframes[i])
-        return (
-            self.dataframes[i]
-            .iloc[key * self.stride : key * self.stride + self.window]
-            .reset_index(drop=True)
-        )
-
-    def __len__(self) -> int:
-        return sum(self.len_of_dataframe(df) for df in self.dataframes)
-
-    def len_of_dataframe(self, df: DataFrame) -> int:
-        return (len(df) - self.window) // self.stride
+from .window import KerasSequence, WindowSequence
 
 
 class DataManager:
@@ -95,11 +67,14 @@ class DataManager:
                 [self.dataset.TRIAL_COLUMN, self.dataset.SUBJECT_COLUMN]
             )
         ]
-        if shuffle:
-            if seed:
-                random.seed(seed)
-            random.shuffle(dataframes)
-        return Windows(dataframes, window, stride)
+        return WindowSequence(
+            dataframes,
+            self.dataset.ACTIVITY_COLUMN,
+            window,
+            stride=stride,
+            shuffle=shuffle,
+            seed=seed,
+        )
 
     def df_to_np(self, dataframe: DataFrame) -> numpy.ndarray:
         activity_enumeration = self.dataset.enumerate_activities()
