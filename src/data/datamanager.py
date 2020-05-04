@@ -3,10 +3,11 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, ClassVar, List, Literal, Optional, Sequence, Set, Tuple
 
+import numpy
 import pandas
-from pandas import DataFrame
-
 import pyarrow
+from keras.utils import to_categorical
+from pandas import DataFrame
 from pyarrow.parquet import ParquetFile, ParquetSchema
 
 from ..config import Config
@@ -20,7 +21,7 @@ class Windows(Sequence[DataFrame]):
     ) -> None:
         self.dataframes = dataframes
         self.window = window
-        self.stride = stride if stride else window
+        self.stride = stride if stride else 1
 
     def __getitem__(self, key: Any) -> DataFrame:
         if type(key) is not int:
@@ -70,7 +71,7 @@ class DataManager:
             self.path, columns=columns if columns else list(self.dataset.COLUMNS.keys())
         )
 
-    def stream(
+    def create_windows(
         self,
         activities: Set[Activity],
         window: int,
@@ -99,6 +100,19 @@ class DataManager:
                 random.seed(seed)
             random.shuffle(dataframes)
         return Windows(dataframes, window, stride)
+
+    def df_to_np(self, dataframe: DataFrame) -> numpy.ndarray:
+        activity_enumeration = self.dataset.enumerate_activities()
+        activity_codes = dataframe[self.dataset.ACTIVITY_COLUMN].apply(
+            activity_enumeration.get
+        )
+        numerical_attributes = dataframe.select_dtypes("number")
+        return (
+            numerical_attributes.values,
+            to_categorical(
+                activity_codes.values, num_classes=len(activity_enumeration)
+            ),
+        )
 
     def read_schema(self) -> ParquetSchema:
         return ParquetFile(self.path).schema

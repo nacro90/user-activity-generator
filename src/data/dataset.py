@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from enum import Enum
+from enum import Enum, auto
 from math import sqrt
 from pathlib import Path
 from typing import Callable, ClassVar, Dict, Optional, Tuple, Type
@@ -13,12 +13,12 @@ from .reader import CsvReader, Reader
 
 
 class Activity(Enum):
-    WALKING = 0
-    JOGGING = 1
-    UPSTAIRS = 2
-    DOWNSTAIRS = 3
-    SITTING = 4
-    STANDING = 5
+    WALKING = auto()
+    JOGGING = auto()
+    UPSTAIRS = auto()
+    DOWNSTAIRS = auto()
+    SITTING = auto()
+    STANDING = auto()
 
 
 class Dataset(ABC):
@@ -49,6 +49,12 @@ class Dataset(ABC):
     @property
     def hash(self) -> str:
         return recursive_sha256(self.path)
+
+    @classmethod
+    def enumerate_activities(cls) -> Dict[str, int]:
+        label_list = list(cls.ACTIVITIES.values())
+        label_list.sort()
+        return {label: i for i, label in enumerate(label_list)}
 
     @abstractmethod
     def read(self) -> DataFrame:
