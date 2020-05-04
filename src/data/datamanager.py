@@ -1,6 +1,7 @@
+import random
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, ClassVar, List, Literal, TypeVar, Optional, Set
+from typing import Any, ClassVar, List, Literal, Optional, Sequence, Set, Tuple
 
 import pandas
 import pyarrow
@@ -8,8 +9,38 @@ from pandas import DataFrame
 from pyarrow.parquet import ParquetFile, ParquetSchema
 
 from ..config import Config
-from .dataset import Dataset, Activity
+from .dataset import Activity, Dataset
 from .filetype import FileType
+
+
+class Windows(Sequence[DataFrame]):
+    def __init__(
+        self, dataframes: Sequence[DataFrame], window: int, stride: Optional[int] = None
+    ) -> None:
+        self.dataframes = dataframes
+        self.window = window
+        self.stride = stride if stride else window
+
+    def __getitem__(self, key: Any) -> DataFrame:
+        if type(key) is not int:
+            raise ValueError(f"`key` must be an integer: key = {key}")
+        i = 0
+        len_df = self.len_of_dataframe(self.dataframes[i])
+        while key > len_df:
+            key -= len_df
+            i += 1
+            len_df = self.len_of_dataframe(self.dataframes[i])
+        return (
+            self.dataframes[i]
+            .iloc[key * self.stride : key * self.stride + self.window]
+            .reset_index(drop=True)
+        )
+
+    def __len__(self) -> int:
+        return sum(self.len_of_dataframe(df) for df in self.dataframes)
+
+    def len_of_dataframe(self, df: DataFrame) -> int:
+        return (len(df) - self.window) // self.stride
 
 
 class DataManager:
@@ -45,6 +76,8 @@ class DataManager:
         stride: Optional[int] = None,
         subjects: Optional[Set[int]] = None,
         clean: bool = False,
+        shuffle: bool = False,
+        seed: Optional[int] = None,
     ) -> DataFrame:
         stride = stride if stride else window
         data = self.read(clean=clean)
@@ -54,11 +87,17 @@ class DataManager:
             filtered = filtered.loc[
                 filtered[self.dataset.SUBJECT_COLUMN].isin(subjects)
             ]
-        for _, data in filtered.groupby(
-            [self.dataset.TRIAL_COLUMN, self.dataset.SUBJECT_COLUMN]
-        ):
-            for i in range((len(filtered) - window) // stride):
-                yield filtered.iloc[i * stride : i * stride + window]
+        dataframes = [
+            data
+            for _, data in filtered.groupby(
+                [self.dataset.TRIAL_COLUMN, self.dataset.SUBJECT_COLUMN]
+            )
+        ]
+        if shuffle:
+            if seed:
+                random.seed(seed)
+            random.shuffle(dataframes)
+        return Windows(dataframes, window, stride)
 
     def read_schema(self) -> ParquetSchema:
         return ParquetFile(self.path).schema
