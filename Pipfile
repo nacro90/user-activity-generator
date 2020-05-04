@@ -19,6 +19,7 @@ pandas = "*"
 toml = "*"
 plotly = "*"
 pyarrow = "*"
+tensorflow = "*"
 
 [requires]
 python_version = "3.8"
