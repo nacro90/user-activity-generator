@@ -23,7 +23,7 @@ class WindowSequence(Sequence[Tuple[DataFrame, DataFrame]]):
         self.stride = stride if stride else 1
         self.shuffle = shuffle
         if shuffle:
-            self.random_indexes = self.create_random_indexes(seed if seed else None)
+            self.random_indexes = self.create_random_indexes(seed)
 
     def __getitem__(self, key: Any) -> Tuple[DataFrame, Series]:
         if type(key) is not int:
@@ -45,6 +45,17 @@ class WindowSequence(Sequence[Tuple[DataFrame, DataFrame]]):
 
     def __len__(self) -> int:
         return sum(self.len_of_dataframe(df) for df in self.sequences)
+
+    def get_shape(
+        self, only_numeric: bool = False, single_window: bool = True
+    ) -> Tuple[int, int]:
+        num_columns = None
+        if not only_numeric:
+            num_columns = len(self.sequences[0].columns)
+        else:
+            num_columns = len(self.sequences[0].select_dtypes("number").columns)
+
+        return (self.window, num_columns)
 
     def create_random_indexes(self, seed_value: Optional[int]) -> Tuple[int, ...]:
         indexes = list(range(len(self)))
@@ -75,16 +86,17 @@ class NumpySequences(KerasSequence):
 
         for i in range(index * self.batch_size, (index + 1) * self.batch_size):
             window = self.window_sequence[i]
-            activities = window[self.window_sequence.activity_column]
-            expanded = numpy.expand_dims(window.select_dtypes("number").values)
-            x = numpy.concatenate(x, expanded) if x else expanded
-            one_hots = numpy.expand_dims(
+            activities = window[1]
+            x_next = numpy.expand_dims(window[0].select_dtypes("number").values, axis=0)
+            x = numpy.concatenate((x, x_next)) if x is not None else x_next
+            y_next = numpy.expand_dims(
                 to_categorical(
                     activities.apply(self.activity_codes.get).values,
                     len(self.activity_codes),
-                )
+                ),
+                axis=0,
             )
-            y = numpy.concatenate(y, one_hots) if y else one_hots
+            y = numpy.concatenate((y, y_next)) if y is not None else y_next
 
         return x, y
 

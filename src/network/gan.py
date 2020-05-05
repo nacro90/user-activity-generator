@@ -1,25 +1,37 @@
 from abc import ABC, abstractmethod
-from typing import Tuple, Iterable
+from typing import ClassVar, Iterable, Tuple
 
 import numpy
+from keras.callbacks import EarlyStopping, History, TerminateOnNaN
 from keras.layers import (Activation, BatchNormalization, Dense, Dropout,
                           Flatten, Input, Reshape, ZeroPadding2D)
 from keras.layers.advanced_activations import LeakyReLU
-from keras.models import Dense, Model, Sequential
-from keras.optimizers import Adam
+from keras.models import Model, Sequential
+from keras.optimizers import SGD, Adam
+from keras.utils import Sequence as KerasSequence
+
+from ..data.window import NumpySequences
 
 
 class Gan(ABC):
+
+    GENERATOR_NAME: ClassVar[str] = "Generator"
+    DISCRIMINATOR_NAME: ClassVar[str] = "Discriminator"
+    COMBINED_GAN_NAME: ClassVar[str] = "GAN"
+
     def __init__(self, sequence_shape: Tuple[int, ...], latent_size: int) -> None:
         self.shape = sequence_shape
         self.latent_size = latent_size
         self.generator = self.build_generator(latent_size, sequence_shape)
+        self.generator.name = self.GENERATOR_NAME
         self.discriminator = self.build_discriminator(sequence_shape)
-        self.combined = self.combine(self.generator, self.discriminator)
+        self.discriminator.name = self.DISCRIMINATOR_NAME
+        self.combined = self.combine()
+        self.combined.name = self.COMBINED_GAN_NAME
 
     @staticmethod
     def generate_latents(size: int, n_samples: int) -> numpy.ndarray:
-        return np.random.normal(0, 1, (n_samples, size))
+        return numpy.random.normal(0, 1, (n_samples, size))
 
     @classmethod
     @abstractmethod
@@ -31,13 +43,12 @@ class Gan(ABC):
     def build_discriminator(cls, input_shape: Tuple[int, ...]) -> Model:
         pass
 
-    @classmethod
     @abstractmethod
-    def combine(cls, generator: Model, discriminator: Model) -> Model:
+    def combine(self) -> Model:
         pass
 
     @abstractmethod
-    def train(self, data: Iterable[numpy.ndarray], num_epochs: int) -> None:
+    def train(self, data: NumpySequences, num_epochs: int) -> None:
         pass
 
     def generate(self, num_samples: int) -> numpy.ndarray:
@@ -54,114 +65,108 @@ class SimpleGan(Gan):
         model = Sequential(
             [
                 Dense(256, input_dim=latent_size),
+                BatchNormalization(momentum=0.9),
                 LeakyReLU(alpha=0.2),
-                BatchNormalization(momentum=0.8),
-                Dense(512),
-                LeakyReLU(alpha=0.2),
-                BatchNormalization(momentum=0.8),
                 Dense(1024),
+                BatchNormalization(momentum=0.9),
                 LeakyReLU(alpha=0.2),
-                BatchNormalization(momentum=0.8),
+                Dropout(0.5),
+                Dense(2048),
+                BatchNormalization(momentum=0.9),
+                LeakyReLU(alpha=0.2),
+                Dropout(0.5),
                 Dense(numpy.prod(out_shape), activation="tanh"),
                 Reshape(out_shape),
             ]
         )
 
-        # model.summary()
-
-        latent = Input(shape=latent_size)
-
-        return Model(latent, model(latent))
+        return model
 
     @classmethod
     def build_discriminator(cls, input_shape: Tuple[int, ...]) -> Model:
 
-        optimizer = Adam(0.0002, 0.5)
+        optimizer = SGD(0.001)
 
         model = Sequential(
             [
                 Flatten(input_shape=input_shape),
-                Dense(512),
+                Dense(1024),
                 LeakyReLU(alpha=0.2),
-                Dense(256),
+                Dense(512),
                 LeakyReLU(alpha=0.2),
                 Dense(1, activation="sigmoid"),
             ]
         )
 
-        # model.summary()
-
-        sequence = Input(shape=input_shape)
-
-        model = Model(sequence, model(sequence))
-
         model.compile(
             loss="binary_crossentropy", optimizer=optimizer, metrics=["accuracy"]
         )
 
         return model
 
-    @classmethod
-    def combine(cls, generator: Model, discriminator: Model) -> Model:
+    def combine(self) -> Model:
         optimizer = Adam(0.0002, 0.5)
 
-        latent = Input(shape=generator.input_shape)
-        generated_sequence = generator(latent)
+        latent = Input(shape=(self.latent_size,))
+        generated_sequence = self.generator(latent)
 
-        discriminator.trainable = False
+        self.discriminator.trainable = False
 
         # The discriminator takes generated images as input and determines validity
-        discrimination = discriminator(generated_sequence)
+        discrimination = self.discriminator(generated_sequence)
 
         model = Model(latent, discrimination)
 
-        model.compile(
-            loss="binary_crossentropy", optimizer=optimizer, metrics=["accuracy"]
-        )
+        model.compile(loss="binary_crossentropy", optimizer=optimizer)
 
         return model
 
-    def train(self, data: Iterable[numpy.ndarray], latent_size:int num_epochs: int, batch_size=1) -> None:
+    # def train(self, data: KerasSequence, num_epochs: int) -> History:
+    #     return self.combined.fit(
+    #         x=data, epochs=num_epochs, callbacks=[TerminateOnNaN()]
+    #     )
+
+    def train(self, data: NumpySequences, num_epochs: int) -> None:
 
         # Adversarial ground truths
-        real = np.ones((batch_size, 1))
-        fake = np.zeros((batch_size, 1))
+        ground_real = numpy.ones((data.batch_size, 1))
+        ground_fake = numpy.zeros((data.batch_size, 1))
 
         for epoch in range(num_epochs):
-            for datum in data:
+            for batch, (real_sequences, real_classes) in enumerate(data):
 
-            # ---------------------
-            #  Train Discriminator
-            # ---------------------
+                # ---------------------
+                #  Train Discriminator
+                # ---------------------
 
-            # Select a random batch of images
-            idx = np.random.randint(0, X_train.shape[0], batch_size)
-            imgs = X_train[idx]
+                latents = self.generate_latents(self.latent_size, data.batch_size)
 
-            latent = Gan.generate_latents(latent_size, batch_size)
+                generated_sequences = self.generator.predict(latents)
 
-            generated = self.generator.predict(latent)
+                # Train the discriminator
+                d_loss_real = self.discriminator.train_on_batch(
+                    real_sequences, ground_real
+                )
+                d_loss_fake = self.discriminator.train_on_batch(
+                    generated_sequences, ground_fake
+                )
+                d_loss, d_accuracy = 0.5 * numpy.add(d_loss_real, d_loss_fake)
+                d_accuracy = int(round(d_accuracy * 100))
 
-            # Train the discriminator
-            d_loss_real = self.discriminator.train_on_batch(generated, real)
-            d_loss_fake = self.discriminator.train_on_batch(generated, fake)
-            discriminator_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
+                # ---------------------
+                #  Train Generator
+                # ---------------------
 
-            # ---------------------
-            #  Train Generator
-            # ---------------------
+                latents = self.generate_latents(self.latent_size, data.batch_size)
 
-            noise = Gan.generate_latents(latent_size, batch_size)
+                # Train the generator (to have the discriminator label samples as valid)
+                g_loss = self.combined.train_on_batch(latents, ground_real)
 
-            # Train the generator (to have the discriminator label samples as valid)
-            g_loss = self.combined.train_on_batch(latent, real)
+                # Plot the progress
+                print(
+                    f"{epoch:2}:{batch:4} [D loss: {d_loss:2.3f}, acc: {d_accuracy:3}] [G loss: {g_loss:2.3f}]"
+                )
 
-            # Plot the progress
-            print(f"{epoch}: [D loss: {d_loss[0]}, acc: {d_loss[1] * 100}] [G loss: {g_loss}]"))
-
-            # If at save interval => save generated image samples
-            if epoch % sample_interval == 0:
-                self.sample_images(epoch)
-
-
-
+                # # If at save interval => save generated image samples
+                # if epoch % sample_interval == 0:
+                #     self.sample_images(epoch)
