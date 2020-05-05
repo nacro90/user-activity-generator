@@ -33,6 +33,16 @@ class Gan(ABC):
     def generate_latents(size: int, n_samples: int) -> numpy.ndarray:
         return numpy.random.normal(0, 1, (n_samples, size))
 
+    @staticmethod
+    def noise_clasess(classes: numpy.ndarray, range: float = 0.3) -> numpy.ndarray:
+        rands = (
+            numpy.random.randn(numpy.prod(classes.shape)).reshape(classes.shape)
+            * range
+            * 2
+        )
+        noised = classes - range + rands
+        return noised.clip(min=0)
+
     @classmethod
     @abstractmethod
     def build_generator(cls, latent_size: int, out_shape: Tuple[int, ...]) -> Model:
@@ -145,10 +155,10 @@ class SimpleGan(Gan):
 
                 # Train the discriminator
                 d_loss_real = self.discriminator.train_on_batch(
-                    real_sequences, ground_real
+                    real_sequences, Gan.noise_clasess(ground_real)
                 )
                 d_loss_fake = self.discriminator.train_on_batch(
-                    generated_sequences, ground_fake
+                    generated_sequences, Gan.noise_clasess(ground_fake)
                 )
                 d_loss, d_accuracy = 0.5 * numpy.add(d_loss_real, d_loss_fake)
                 d_accuracy = int(round(d_accuracy * 100))
