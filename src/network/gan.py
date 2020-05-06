@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import ClassVar, Iterable, Tuple
+from typing import ClassVar, Generic, Iterable, Tuple, TypeVar
 
 import numpy
 from keras.callbacks import EarlyStopping, History, TerminateOnNaN
@@ -7,27 +7,29 @@ from keras.layers import (Activation, BatchNormalization, Dense, Dropout,
                           Flatten, Input, Reshape, ZeroPadding2D)
 from keras.layers.advanced_activations import LeakyReLU
 from keras.models import Model, Sequential
-from keras.optimizers import SGD, Adam
-from keras.utils import Sequence as KerasSequence
+from keras.optimizers import SGD, Adam, Optimizer
 
 from ..data.window import NumpySequences
+from .discriminator import Discriminator, MlpDisc
+from .generator import Generator, MlpGen
+
+G = TypeVar("G", bound=Generator)
+D = TypeVar("D", bound=Discriminator)
 
 
 class Gan(ABC):
-
-    GENERATOR_NAME: ClassVar[str] = "Generator"
-    DISCRIMINATOR_NAME: ClassVar[str] = "Discriminator"
-    COMBINED_GAN_NAME: ClassVar[str] = "GAN"
-
-    def __init__(self, sequence_shape: Tuple[int, ...], latent_size: int) -> None:
+    def __init__(
+        self,
+        generator: Generator,
+        discriminator: Discriminator,
+        sequence_shape: Tuple[int, ...],
+        latent_size: int,
+    ) -> None:
         self.shape = sequence_shape
         self.latent_size = latent_size
-        self.generator = self.build_generator(latent_size, sequence_shape)
-        self.generator.name = self.GENERATOR_NAME
-        self.discriminator = self.build_discriminator(sequence_shape)
-        self.discriminator.name = self.DISCRIMINATOR_NAME
+        self.generator = generator
+        self.discriminator = discriminator
         self.combined = self.combine()
-        self.combined.name = self.COMBINED_GAN_NAME
 
     @staticmethod
     def generate_latents(size: int, n_samples: int) -> numpy.ndarray:
@@ -45,12 +47,31 @@ class Gan(ABC):
 
     @classmethod
     @abstractmethod
-    def build_generator(cls, latent_size: int, out_shape: Tuple[int, ...]) -> Model:
+    def build_generator(
+        cls,
+        latent_size: int,
+        out_shape: Tuple[int, ...],
+        layers: int,
+        layer_multiplier: float,
+        momentum: float,
+        leaky_relu_alpha: float,
+        dropout: float,
+    ) -> G:
         pass
 
     @classmethod
     @abstractmethod
-    def build_discriminator(cls, input_shape: Tuple[int, ...]) -> Model:
+    def build_discriminator(
+        self,
+        in_shape: Tuple[int, ...],
+        num_classes: int,
+        num_layers: int,
+        layer_multiplier: float,
+        bn_momentum: float,
+        dropout: float,
+        leaky_relu_alpha: float,
+        optimizer: Optimizer,
+    ) -> MlpDisc:
         pass
 
     @abstractmethod
@@ -66,56 +87,56 @@ class Gan(ABC):
         return self.generator.predict(latents)
 
 
-class SimpleGan(Gan):
+class SimpleGan(Gan[MlpGen, MlpDisc]):
     def __init__(self, sequence_shape: Tuple[int, ...], latent_size: int) -> None:
         Gan.__init__(self, sequence_shape, latent_size)
 
     @classmethod
-    def build_generator(cls, latent_size: int, out_shape: Tuple[int, ...]) -> Model:
-        model = Sequential(
-            [
-                Dense(256, input_dim=latent_size),
-                BatchNormalization(momentum=0.9),
-                LeakyReLU(alpha=0.2),
-                Dense(1024),
-                BatchNormalization(momentum=0.9),
-                LeakyReLU(alpha=0.2),
-                Dropout(0.5),
-                Dense(2048),
-                BatchNormalization(momentum=0.9),
-                LeakyReLU(alpha=0.2),
-                Dropout(0.5),
-                Dense(numpy.prod(out_shape), activation="tanh"),
-                Reshape(out_shape),
-            ]
+    def build_generator(
+        cls,
+        latent_size: int,
+        out_shape: Tuple[int, ...],
+        layers: int,
+        layer_multiplier: float,
+        momentum: float,
+        leaky_relu_alpha: float,
+        dropout: float,
+    ) -> MlpGen:
+        return MlpGen(
+            latent_size,
+            out_shape,
+            layers,
+            layer_multiplier,
+            momentum,
+            dropout,
+            leaky_relu_alpha,
         )
-
-        return model
 
     @classmethod
-    def build_discriminator(cls, input_shape: Tuple[int, ...]) -> Model:
+    def build_discriminator(
+        self,
+        in_shape: Tuple[int, ...],
+        num_classes: int,
+        num_layers: int,
+        layer_multiplier: float,
+        bn_momentum: float,
+        dropout: float,
+        leaky_relu_alpha: float,
+        name: str,
+    ) -> MlpDisc:
 
-        optimizer = SGD(0.001)
-
-        model = Sequential(
-            [
-                Flatten(input_shape=input_shape),
-                Dense(1024),
-                LeakyReLU(alpha=0.2),
-                Dense(512),
-                LeakyReLU(alpha=0.2),
-                Dense(1, activation="sigmoid"),
-            ]
+        return MlpDisc(
+            in_shape,
+            num_classes,
+            num_layers,
+            layer_multiplier,
+            bn_momentum,
+            dropout,
+            leaky_relu_alpha,
+            name,
         )
 
-        model.compile(
-            loss="binary_crossentropy", optimizer=optimizer, metrics=["accuracy"]
-        )
-
-        return model
-
-    def combine(self) -> Model:
-        optimizer = Adam(0.0002, 0.5)
+    def combine(self, optimizer: Optimizer) -> Model:
 
         latent = Input(shape=(self.latent_size,))
         generated_sequence = self.generator(latent)
@@ -130,11 +151,6 @@ class SimpleGan(Gan):
         model.compile(loss="binary_crossentropy", optimizer=optimizer)
 
         return model
-
-    # def train(self, data: KerasSequence, num_epochs: int) -> History:
-    #     return self.combined.fit(
-    #         x=data, epochs=num_epochs, callbacks=[TerminateOnNaN()]
-    #     )
 
     def train(self, data: NumpySequences, num_epochs: int) -> None:
 
