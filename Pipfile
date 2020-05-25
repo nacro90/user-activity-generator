@@ -10,7 +10,6 @@ black = "*"
 python-language-server = {extras = ["pydocstyle", "rope"],version = "*"}
 isort = "*"
 ipython = "*"
-flake8 = "*"
 jupyterlab = "*"
 
 [packages]
