@@ -4,8 +4,9 @@ from pathlib import Path
 from typing import Any, ClassVar, List, Literal, Optional, Sequence, Set, Tuple
 
 import pandas
-import pyarrow
 from pandas import DataFrame
+
+import pyarrow
 from pyarrow.parquet import ParquetFile, ParquetSchema
 
 from ..config import Config

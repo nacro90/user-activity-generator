@@ -7,7 +7,8 @@ verify_ssl = true
 pynvim = "*"
 mypy = "*"
 black = "*"
-python-language-server = "*"
+python-language-server = {extras = ["pydocstyle", "rope"],version = "*"}
+isort = "*"
 ipython = "*"
 flake8 = "*"
 jupyterlab = "*"
@@ -18,6 +19,7 @@ matplotlib = "*"
 pandas = "*"
 toml = "*"
 plotly = "*"
+pyarrow = "*"
 
 [requires]
 python_version = "3.8"
