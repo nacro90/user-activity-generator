@@ -30,5 +30,4 @@ invalidate-data:
 	rm --recursive --force ./data/interim/*
 
 tags:
-	rm --force ./tags && \
-		ctags -R --exclude=data/interim --exclude=.git --exclude=.mypy_cache --exclude=.undodir .
+	rm --force ./tags && ctags -R --exclude=data/interim --exclude=.git --exclude=.mypy_cache --exclude=.undodir .

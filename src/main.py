@@ -17,7 +17,7 @@ def main() -> None:
     dataset = MotionSense(MOTION_SENSE_PATH)
     data_manager = DataManager(dataset)
 
-    return data_manager.stream({Activity.WALKING}, dataset.FREQUENCY * 2)
+    # return data_manager.stream({Activity.WALKING}, dataset.FREQUENCY * 2)
 
 
 if __name__ == "__main__":
