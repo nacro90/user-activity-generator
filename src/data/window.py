@@ -41,7 +41,7 @@ class WindowSequence(Sequence[Tuple[DataFrame, DataFrame]]):
             .iloc[key * self.stride : key * self.stride + self.window]
             .reset_index(drop=True)
         )
-        return (df, df[self.activity_column])
+        return (df.drop(columns=[self.activity_column]), df[self.activity_column])
 
     def __len__(self) -> int:
         return sum(self.len_of_dataframe(df) for df in self.sequences)
@@ -88,7 +88,7 @@ class NumpySequences(KerasSequence):
             window = self.window_sequence[i]
             activities = window[1]
             x_next = numpy.expand_dims(window[0].select_dtypes("number").values, axis=0)
-            x = numpy.concatenate((x, x_next)) if x is not None else x_next
+            x = numpy.concatenate((x, x_next)) if x is not None else x_next  # type: ignore
             y_next = numpy.expand_dims(
                 to_categorical(
                     activities.apply(self.activity_codes.get).values,
@@ -96,7 +96,7 @@ class NumpySequences(KerasSequence):
                 ),
                 axis=0,
             )
-            y = numpy.concatenate((y, y_next)) if y is not None else y_next
+            y = numpy.concatenate((y, y_next)) if y is not None else y_next  # type: ignore
 
         return x, y
 

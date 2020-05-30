@@ -52,9 +52,22 @@ class DataManager:
         clean: bool = False,
         shuffle: bool = False,
         seed: Optional[int] = None,
+        columns: List[str] = None,
     ) -> DataFrame:
         stride = stride if stride else window
-        data = self.read(clean=clean)
+        data = self.read(
+            clean=clean,
+            columns=(
+                columns
+                + [
+                    self.dataset.ACTIVITY_COLUMN,
+                    self.dataset.TRIAL_COLUMN,
+                    self.dataset.SUBJECT_COLUMN,
+                ]
+            )
+            if columns
+            else None,
+        )
         activity_keys = [self.dataset.ACTIVITIES[activity] for activity in activities]
         filtered = data.loc[data[self.dataset.ACTIVITY_COLUMN].isin(activity_keys)]
         if subjects:
@@ -62,7 +75,7 @@ class DataManager:
                 filtered[self.dataset.SUBJECT_COLUMN].isin(subjects)
             ]
         dataframes = [
-            data
+            data.drop(columns=[self.dataset.SUBJECT_COLUMN, self.dataset.TRIAL_COLUMN])
             for _, data in filtered.groupby(
                 [self.dataset.TRIAL_COLUMN, self.dataset.SUBJECT_COLUMN]
             )
