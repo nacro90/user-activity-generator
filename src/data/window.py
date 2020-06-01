@@ -74,6 +74,11 @@ class WindowSequence(Sequence[Tuple[DataFrame, DataFrame]]):
 class NumpySequences(KerasSequence):
     def __init__(self, window_sequence: WindowSequence, batch_size: int):
         self.window_sequence = window_sequence
+        self.shape = (
+            len(window_sequence),
+            batch_size,
+            *window_sequence.get_shape(only_numeric=True),
+        )
         self.batch_size = batch_size
         self.activity_codes = {
             a: i
