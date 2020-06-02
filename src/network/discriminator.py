@@ -3,8 +3,8 @@ from enum import Enum
 from typing import Any, ClassVar, Dict, Tuple
 
 import numpy
-from keras.layers import Dense, Dropout, Flatten, LeakyReLU
-from keras.models import Sequential
+from keras.layers import Dense, Dropout, Flatten, LeakyReLU, Input
+from keras.models import Model, Sequential
 from keras.optimizers import Optimizer
 
 
@@ -20,18 +20,14 @@ class Param(Enum):
     OPTIMIZER_PARAMS = "disc_opt_params"
 
 
-class Discriminator(ABC, Sequential):
+class Discriminator(ABC, Model):
 
     CONDITIONAL: ClassVar[bool] = NotImplemented
     INFINITE: ClassVar[bool] = NotImplemented
 
-    def __init__(
-        self, in_shape: Tuple[int, ...], out_shape: Tuple[int, ...], name: str = None,
-    ):
+    def __init__(self, in_shape: Tuple[int, ...], out_shape: Tuple[int, ...]):
         self.in_shape = in_shape
         self.out_shape = out_shape
-
-        Sequential.__init__(self, name=name or self.__class__.__name__)
 
     @abstractmethod
     def create_param_dict(self) -> Dict[str, Any]:
@@ -55,7 +51,7 @@ class SimpleMlpDisc(Discriminator):
         name: str = None,
     ):
 
-        Discriminator.__init__(self, in_shape, (1,), name)
+        Discriminator.__init__(self, in_shape, (1,))
 
         self.num_layers = num_layers
         self.layer_multiplier = layer_multiplier
@@ -63,19 +59,24 @@ class SimpleMlpDisc(Discriminator):
         self.dropout = dropout
         self.leaky_relu_alpha = leaky_relu_alpha
 
-        self.add(Flatten(input_shape=in_shape))
+        x = Input(in_shape)
+        y = Flatten()(x)
 
         for layer in range(num_layers):
-            self.add(
-                Dense(round(numpy.prod(in_shape) * ((num_layers - layer) / num_layers)))
-            )
-            self.add(LeakyReLU(alpha=leaky_relu_alpha))
-            self.add(Dropout(dropout))
+            y = Dense(
+                round(numpy.prod(in_shape) * ((num_layers - layer) / num_layers))
+            )(y)
+            y = LeakyReLU(alpha=leaky_relu_alpha)(y)
+            y = Dropout(dropout)(y)
 
-        self.add(Dense(1, activation="sigmoid"))
+        y = Dense(1, activation="sigmoid")(y)
+
+        Model.__init__(self, inputs=x, outputs=y, name=name or self.__class__.__name__)
+
         self.compile(
             loss=["binary_crossentropy"], optimizer=optimizer, metrics=["accuracy"]
         )
+
 
     def create_param_dict(self) -> Dict[str, Any]:
         return {
