@@ -46,9 +46,7 @@ class WindowSequence(Sequence[Tuple[DataFrame, DataFrame]]):
     def __len__(self) -> int:
         return sum(self.len_of_dataframe(df) for df in self.sequences)
 
-    def get_shape(
-        self, only_numeric: bool = False, single_window: bool = True
-    ) -> Tuple[int, int]:
+    def get_shape(self, only_numeric: bool = True) -> Tuple[int, int]:
         num_columns = None
         if not only_numeric:
             num_columns = len(self.sequences[0].columns)
