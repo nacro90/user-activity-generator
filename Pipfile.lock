@@ -1078,10 +1078,10 @@
         },
         "nbclient": {
             "hashes": [
-                "sha256:7af2301147f3d51e30b4d7c033eacc870667807fd0e65117795c752a288b90aa",
-                "sha256:eece323c327ccf0708d4c414dfbb1153f60a3b20661ccea404dc1e8de9eccc0d"
+                "sha256:042bcb8f878ca0c567a59dc0e1367e2215fea9a31d764bd1ad8cb1408a507469",
+                "sha256:5db1a63730a80a95097abd21ea0d142c57ccb0288fc6ad1978684e79dc65e80c"
             ],
-            "version": "==0.4.0a0"
+            "version": "==0.4.0a1"
         },
         "nbconvert": {
             "hashes": [
@@ -1428,10 +1428,10 @@
         },
         "wcwidth": {
             "hashes": [
-                "sha256:cafe2186b3c009a04067022ce1dcd79cb38d8d65ee4f4791b8888d6599d1bbe1",
-                "sha256:ee73862862a156bf77ff92b09034fc4825dd3af9cf81bc5b360668d425f3c5f1"
+                "sha256:3de2e41158cb650b91f9654cbf9a3e053cee0719c9df4ddc11e4b568669e9829",
+                "sha256:b651b6b081476420e4e9ae61239ac4c1b49d0c5ace42b2e81dc2ff49ed50c566"
             ],
-            "version": "==0.1.9"
+            "version": "==0.2.2"
         },
         "webencodings": {
             "hashes": [

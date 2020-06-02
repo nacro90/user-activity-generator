@@ -1,26 +1,22 @@
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import Any, ClassVar, Dict, Generic, Iterable, Tuple, TypeVar
+from typing import (Any, ClassVar, Dict, Generic, Iterable, Sequence, Tuple,
+                    TypeVar, Union)
+
+import numpy
 
 import mlflow
 import mlflow.keras
-import numpy
 from keras.callbacks import EarlyStopping, History, TerminateOnNaN
-from keras.layers import (
-    Activation,
-    BatchNormalization,
-    Dense,
-    Dropout,
-    Flatten,
-    Input,
-    Reshape,
-    ZeroPadding2D,
-)
+from keras.layers import (Activation, BatchNormalization, Dense, Dropout,
+                          Embedding, Flatten, Input, Reshape, ZeroPadding2D,
+                          multiply)
 from keras.layers.advanced_activations import LeakyReLU
 from keras.models import Model, Sequential
 from keras.optimizers import SGD, Adam, Optimizer
 
 from ..data.window import NumpySequences
+from ..util.measurement import dynamic_time_warp, measure, min_euclidean
 from .discriminator import Discriminator, SimpleMlpDisc
 from .generator import Generator, SimpleMlpGen
 
@@ -42,6 +38,8 @@ class Metric(Enum):
     GENERATOR_LOSS = "generator_loss"
     DISCRIMINATOR_LOSS = "discriminator_loss"
     DISCRIMINATOR_ACCURACY = "discriminator_accuracy"
+    DISTANCE_MIN_EUCLIDEAN = "distance_min_euclidean"
+    DISTANCE_MANHATTAN = "distance_manhattan"
 
 
 class Tag(Enum):
@@ -116,6 +114,10 @@ class Gan(ABC, Generic[G, D]):
     ) -> Tuple[float, int, float]:
         pass
 
+    @abstractmethod
+    def _create_param_dict(self) -> Dict[str, Any]:
+        pass
+
     def create_note_content(self) -> str:
         lines = []
         lines.append("# Summary\n")
@@ -138,14 +140,17 @@ class Gan(ABC, Generic[G, D]):
         return latents
 
     def create_param_dict(self) -> Dict[str, Any]:
-        return {
-            Param.OPTIMIZER_TYPE.value: self.optimizer.__class__.__name__,
-            Param.OPTIMIZER_PARAMS.value: self.optimizer.get_config(),
-            Param.SMOOTHING_TYPE.value: self.smoothing_type.name,
-        }
+        params = self._create_param_dict()
+        params.update(
+            {
+                Param.OPTIMIZER_TYPE.value: self.optimizer.__class__.__name__,
+                Param.OPTIMIZER_PARAMS.value: self.optimizer.get_config(),
+                Param.SMOOTHING_TYPE.value: self.smoothing_type.name,
+            }
+        )
+        return params
 
     def train(self, data: NumpySequences, num_epochs: int) -> None:
-        # Adversarial ground truths
         mlflow.log_params(
             {
                 Param.WINDOW.value: data.shape[-2],
@@ -153,22 +158,25 @@ class Gan(ABC, Generic[G, D]):
                 Param.BATCH_SIZE.value: data.batch_size,
             }
         )
+        # Adversarial ground truths
         ground_real, ground_fake = self.create_ground_values(data.batch_size)
 
+        training_step = 0
         for epoch in range(num_epochs):
             for batch, (real_sequences, real_classes) in enumerate(data):
                 d_loss, d_accuracy, g_loss = self._batch_step(
                     real_sequences, real_classes, ground_real, ground_fake
                 )
                 print(
-                    f"E:{epoch+1:2} | B:{batch+1:<4}/{len(data):<4} [D loss: {d_loss:2.3f}, acc: %{d_accuracy:2}] [G loss: {g_loss:2.3f}]"
+                    f"E:{epoch+1:2} | B:{batch+1:>4}/{len(data):<4} [D loss: {d_loss:2.3f}, acc: %{d_accuracy:2}] [G loss: {g_loss:2.3f}]"
                 )
                 mlflow.log_metrics(
                     {
                         Metric.DISCRIMINATOR_LOSS.value: d_loss,
                         Metric.DISCRIMINATOR_ACCURACY.value: d_accuracy,
                         Metric.GENERATOR_LOSS.value: g_loss,
-                    }
+                    },
+                    training_step,
                 )
                 training_step += 1
 
@@ -186,14 +194,13 @@ class Gan(ABC, Generic[G, D]):
 
             interval = num_epochs // Gan.N_CHECKPOINTS
             if (epoch + 1) % interval == 0:
+                checkpoint_num = (epoch + 1) // interval
+                mlflow.keras.log_model(self.combined, f"models/gan_{checkpoint_num}")
                 mlflow.keras.log_model(
-                    self.combined, f"models/gan_{(epoch+1)//interval}"
+                    self.generator, f"models/generator_{checkpoint_num}"
                 )
                 mlflow.keras.log_model(
-                    self.generator, f"models/generator_{(epoch+1)//interval}"
-                )
-                mlflow.keras.log_model(
-                    self.discriminator, f"models/discriminator_{(epoch+1)//interval}"
+                    self.discriminator, f"models/discriminator_{checkpoint_num}"
                 )
 
         mlflow.end_run()
@@ -220,15 +227,19 @@ class SimpleGan(Gan[G, D]):
 
     DESCRIPTION = "Plain, vanilla GAN without any class information"
 
-    def __init__(self, generator: G, discriminator: D, optimizer: Optimizer,) -> None:
+    def __init__(
+        self,
+        generator: G,
+        discriminator: D,
+        optimizer: Optimizer,
+        smoothing_type: SmoothingType = None,
+    ) -> None:
         Gan.__init__(self, generator, discriminator, optimizer)
+        if smoothing_type:
+            self.smoothing_type = smoothing_type
 
-    def create_param_dict(self) -> Dict[str, Any]:
-        return {
-            Param.OPTIMIZER_TYPE.value: self.optimizer.__class__.__name__,
-            Param.OPTIMIZER_PARAMS.value: self.optimizer.get_config(),
-            Param.SMOOTHING_TYPE.value: self.smoothing_type.name,
-        }
+    def _create_param_dict(self) -> Dict[str, Any]:
+        return {}
 
     def combine(self, optimizer: Optimizer) -> Model:
         latent = Input(shape=(self.generator.input_shape[1],))
