@@ -170,6 +170,20 @@ class Gan(ABC, Generic[G, D]):
                         Metric.GENERATOR_LOSS.value: g_loss,
                     }
                 )
+                training_step += 1
+
+            samples = self.generate(1)
+            dists = measure(samples, data)
+            mlflow.log_metrics(
+                {
+                    Metric.DISTANCE_MIN_EUCLIDEAN.value: dists[0],
+                    Metric.DISTANCE_MANHATTAN.value: dists[1],
+                },
+                epoch,
+            )
+            # dist = dynamic_time_warp(samples, data)
+            # mlflow.log_metric(Metric.DISTANCE_TIME_WARP.value, dist)
+
             interval = num_epochs // Gan.N_CHECKPOINTS
             if (epoch + 1) % interval == 0:
                 mlflow.keras.log_model(
