@@ -83,6 +83,7 @@ class DataManager:
         return WindowSequence(
             dataframes,
             self.dataset.ACTIVITY_COLUMN,
+            len(activities),
             window,
             stride=stride,
             shuffle=shuffle,
