@@ -12,12 +12,14 @@ class WindowSequence(Sequence[Tuple[DataFrame, DataFrame]]):
         self,
         sequences: Sequence[DataFrame],
         activity_column: str,
+        num_classes: int,
         window: int,
         stride: Optional[int] = None,
         shuffle: bool = False,
         seed: Optional[int] = None,
     ) -> None:
         self.sequences = sequences
+        self.num_classes = num_classes
         self.activity_column = activity_column
         self.window = window
         self.stride = stride if stride else 1
@@ -101,7 +103,7 @@ class NumpySequences(KerasSequence):
             )
             y = numpy.concatenate((y, y_next)) if y is not None else y_next  # type: ignore
 
-        return x, y
+        return x, y.max(axis=1)  # type: ignore
 
     def __len__(self) -> int:
         return len(self.window_sequence) // self.batch_size
