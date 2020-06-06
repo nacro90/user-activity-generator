@@ -1,4 +1,4 @@
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import DefaultDict, Dict, List, Optional, Sequence, Tuple, Union
 
 import dtw
 import numpy
@@ -36,25 +36,54 @@ def dynamic_time_warp(
     return sum(distances) / len(distances)
 
 
+def create_confusion_matrix(
+    samples: numpy.ndarray, data: NumpySequences,
+) -> numpy.ndarray:
+
+    euclideans: List[List[List[float]]] = [
+        [[] for _ in range(len(samples))] for _ in range(len(samples))
+    ]
+
+    for sequences, labels in data:
+        labels = labels.argmax(axis=-1)
+        for sample_label, sample in enumerate(samples):
+            diffs = sequences - sample
+            euclidean = numpy.linalg.norm(diffs, axis=(-1, -2))
+            for i, data_label in enumerate(labels):
+                euclideans[sample_label][data_label].append(euclidean[i])
+
+    for i in range(len(euclideans)):
+        for j in range(len(euclideans[i])):
+            lst = euclideans[i][j]
+            euclideans[i][j] = min(lst)  # type: ignore
+
+    return numpy.array(euclideans)
+
+
+def create_epoch_measurements(
+    samples: numpy.ndarray, data: NumpySequences,
+) -> numpy.ndarray:
+
+    return create_confusion_matrix(samples, data).min(axis=-1).mean()
+
+
 def measure(
-    samples: Union[numpy.ndarray, Sequence[numpy.ndarray]], data: NumpySequences
-) -> Tuple[float, float]:
-    euclideans: List[float] = []
-    manhattans: List[float] = []
-    for sample in samples:
-        min_euclidean: Optional[float] = None
-        min_manhattan: Optional[float] = None
-        for sequences, _ in data:
-            for sequence in sequences:
-                diff = sequence - sample
-                manhattan = abs(diff).sum()
-                min_manhattan = (
-                    min(min_manhattan, manhattan) if min_manhattan else manhattan  # type: ignore
-                )
-                euclidean = numpy.linalg.norm(diff)
-                min_euclidean = (
-                    min(min_euclidean, euclidean) if min_euclidean else euclidean  # type: ignore
-                )
-        euclideans.append(min_euclidean if min_euclidean else 0)
-        manhattans.append(min_manhattan if min_manhattan else 0)
-    return sum(euclideans) / len(euclideans), sum(manhattans) / len(manhattans)  # type: ignore
+    samples: Union[numpy.ndarray, Sequence[numpy.ndarray]],
+    labels: Union[numpy.ndarray, Sequence[numpy.ndarray]],
+    num_classes: int,
+    data: NumpySequences,
+) -> Tuple[Dict[int, float], Dict[int, float]]:
+    euclideans: Dict[int, List[float]] = {i: [] for i in range(num_classes)}
+    manhattans: Dict[int, List[float]] = {i: [] for i in range(num_classes)}
+    for sequences, labels in data:
+        for sample in samples:
+            diffs = sequences - sample
+            manhattan = abs(diffs).sum(axis=(-1, -2))
+            euclidean = numpy.linalg.norm(diffs, axis=(-1, -2))
+            for i, label in enumerate(labels):
+                manhattans[label].append(manhattan[i])
+                euclideans[label].append(euclidean[i])
+    return (
+        {k: min(v) for k, v in euclideans.items()},
+        {k: min(v) for k, v in manhattans.items()},
+    )

@@ -47,29 +47,15 @@ class Generator(ABC, Model):
     def create_mlp_interim(
         self,
         x: Layer,
-        out_shape: Tuple[int, ...],
-        latent_size: int,
         num_layers: int,
         layer_multiplier: float,
         bn_momentum: float,
         leaky_relu_alpha: float,
         dropout: float,
     ) -> Layer:
-
-        y = Dense(latent_size)(x)
-        y = BatchNormalization(momentum=bn_momentum)(y)
-        y = LeakyReLU(alpha=leaky_relu_alpha)(y)
-        y = Dropout(dropout)(y)
-        for layer in range(2, num_layers):
-            y = Dense(
-                round(
-                    latent_size
-                    + (
-                        abs(latent_size - numpy.prod(out_shape))
-                        * (layer / (num_layers - 1))
-                    )
-                )
-            )(y)
+        y = x
+        for layer in range(num_layers):
+            y = Dense(self.latent_size * (layer_multiplier ** layer))(y)
             y = BatchNormalization(momentum=bn_momentum)(y)
             y = LeakyReLU(alpha=leaky_relu_alpha)(y)
             y = Dropout(dropout)(y)
@@ -115,14 +101,7 @@ class SimpleMlpGen(Generator):
 
         x = Input((latent_size,))
         y = self.create_mlp_interim(
-            x,
-            out_shape,
-            latent_size,
-            num_layers,
-            layer_multiplier,
-            bn_momentum,
-            leaky_relu_alpha,
-            dropout,
+            x, num_layers, layer_multiplier, bn_momentum, leaky_relu_alpha, dropout,
         )
         y = Dense(numpy.prod(out_shape), activation="tanh")(y)
         y = Reshape(out_shape)(y)
@@ -170,19 +149,11 @@ class EmbeddingMlpGen(EmbeddingGenerator):
         label = Input((1,), dtype="int32")
 
         label_embedding = Flatten()(Embedding(num_classes, latent_size)(label))
-
         x = multiply([latent, label_embedding])
         y = self.create_mlp_interim(
-            x,
-            out_shape,
-            latent_size,
-            num_layers,
-            layer_multiplier,
-            bn_momentum,
-            leaky_relu_alpha,
-            dropout,
+            x, num_layers, layer_multiplier, bn_momentum, leaky_relu_alpha, dropout,
         )
-        y = Dense(numpy.prod(out_shape), activation="tanh")(x)
+        y = Dense(numpy.prod(out_shape), activation="tanh")(y)
         y = Reshape(out_shape)(y)
 
         Model.__init__(
