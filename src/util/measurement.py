@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import DefaultDict, Dict, List, Optional, Sequence, Tuple, Union
 
 import dtw
 import numpy
@@ -34,6 +34,37 @@ def dynamic_time_warp(
                 min_dist = min(min_dist, dist) if min_dist else dist  # type: ignore
         distances.append(min_dist if min_dist else 0)
     return sum(distances) / len(distances)
+
+
+def create_confusion_matrix(
+    samples: numpy.ndarray, data: NumpySequences,
+) -> numpy.ndarray:
+
+    euclideans: List[List[List[float]]] = [
+        [[] for _ in range(len(samples))] for _ in range(len(samples))
+    ]
+
+    for sequences, labels in data:
+        labels = labels.argmax(axis=-1)
+        for sample_label, sample in enumerate(samples):
+            diffs = sequences - sample
+            euclidean = numpy.linalg.norm(diffs, axis=(-1, -2))
+            for i, data_label in enumerate(labels):
+                euclideans[sample_label][data_label].append(euclidean[i])
+
+    for i in range(len(euclideans)):
+        for j in range(len(euclideans[i])):
+            lst = euclideans[i][j]
+            euclideans[i][j] = min(lst)  # type: ignore
+
+    return numpy.array(euclideans)
+
+
+def create_epoch_measurements(
+    samples: numpy.ndarray, data: NumpySequences,
+) -> numpy.ndarray:
+
+    return create_confusion_matrix(samples, data).min(axis=-1).mean()
 
 
 def measure(

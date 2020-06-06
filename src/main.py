@@ -13,26 +13,39 @@ MOTION_SENSE_PATH = Path(datasets["motion-sense"])
 def main() -> None:
     import mlflow
     import mlflow.keras
+    import numpy
     import keras
     from keras import Sequential
     from keras.layers import Dense
 
-    seq = Sequential([Dense(512, input_shape=(100,)), Dense(512)])
-    seq.compile(loss="binary_crossentropy", optimizer=keras.optimizers.SGD(0.002))
+    # numpy.random.seed(1)
 
-    seq2 = Sequential([Dense(12, input_shape=(10,)), Dense(12)])
-    seq2.compile(loss="binary_crossentropy", optimizer=keras.optimizers.SGD(0.002))
+    # a = numpy.random.random((26,26))
+    # b = numpy.random.random((3,))
 
-    stringlist = []
-    stringlist.append(f"# {seq.name}")
-    seq.summary(print_fn=lambda x: stringlist.append(f"    {x}"))
-    stringlist.append(f"## Generator")
-    seq2.summary(print_fn=lambda x: stringlist.append(f"    {x}"))
-    stringlist.append(f"## Discriminator")
-    seq2.summary(print_fn=lambda x: stringlist.append(f"    {x}"))
-    short_model_summary = "\n".join(stringlist)
+    # numpy.set_printoptions(formatter={"float": f"{: 0.3f}"})
 
-    mlflow.set_tag("mlflow.note.content", short_model_summary)
+    # with open("/tmp/osman.txt", "w") as file:
+    #     file.write(str(a))
+
+    # mlflow.log_artifact("/tmp/osman.txt")
+
+    # seq = Sequential([Dense(512, input_shape=(100,)), Dense(512)])
+    # seq.compile(loss="binary_crossentropy", optimizer=keras.optimizers.SGD(0.002))
+
+    # seq2 = Sequential([Dense(12, input_shape=(10,)), Dense(12)])
+    # seq2.compile(loss="binary_crossentropy", optimizer=keras.optimizers.SGD(0.002))
+
+    # stringlist = []
+    # stringlist.append(f"# {seq.name}")
+    # seq.summary(print_fn=lambda x: stringlist.append(f"    {x}"))
+    # stringlist.append(f"## Generator")
+    # seq2.summary(print_fn=lambda x: stringlist.append(f"    {x}"))
+    # stringlist.append(f"## Discriminator")
+    # seq2.summary(print_fn=lambda x: stringlist.append(f"    {x}"))
+    # short_model_summary = "\n".join(stringlist)
+
+    # mlflow.set_tag("mlflow.note.content", short_model_summary)
 
     # mlflow.keras.log_model(seq, "models/gan", keras_module="keras")
     # mlflow.keras.log_model(seq, "models/generator", keras_module="keras")

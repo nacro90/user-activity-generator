@@ -1,3 +1,4 @@
+import os
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from typing import (
@@ -33,11 +34,18 @@ from keras.models import Model, Sequential
 from keras.optimizers import SGD, Adam, Optimizer
 
 from ..data.window import NumpySequences
-from ..util.measurement import dynamic_time_warp, measure, min_euclidean
+from ..util.measurement import (
+    create_confusion_matrix,
+    create_epoch_measurements,
+    dynamic_time_warp,
+    measure,
+    min_euclidean,
+)
 from .discriminator import (
     Discriminator,
     EmbeddingDiscriminator,
     EmbeddingMlpDisc,
+    LabelingDiscriminator,
     SimpleMlpDisc,
 )
 from .generator import EmbeddingGenerator, EmbeddingMlpGen, Generator, SimpleMlpGen
@@ -54,6 +62,7 @@ class Param(Enum):
     BATCH_SIZE = "batch_size"
     NUM_EPOCH = "num_epoch"
     WINDOW = "window"
+    N_FEATURES = "num_features"
 
 
 class Metric(Enum):
@@ -83,6 +92,7 @@ class Gan(ABC, Generic[G, D]):
 
     def __init__(
         self,
+        num_classes: int,
         generator: G,
         discriminator: D,
         optimizer: Optimizer,
@@ -92,7 +102,10 @@ class Gan(ABC, Generic[G, D]):
             raise ValueError(
                 "Generator and Discriminator have to have same conditionality"
             )
+        if generator.CONDITIONAL and num_classes == 1:
+            raise ValueError("Conditional GANS's must have more than one class")
 
+        self.num_classes = num_classes
         self.smoothing_type = smoothing_type
         self.optimizer = optimizer
         self.generator = generator
@@ -165,6 +178,13 @@ class Gan(ABC, Generic[G, D]):
                 latents = new_element
         return latents
 
+    def generate_labels(self, n_samples: int, onehot: bool) -> numpy.ndarray:
+        if onehot:
+            return numpy.eye(self.num_classes)[
+                numpy.random.choice(self.num_classes, n_samples)
+            ]
+        return numpy.random.randint(0, self.num_classes, (n_samples, 1))
+
     def create_param_dict(self) -> Dict[str, Any]:
         params = self._create_param_dict()
         params.update(
@@ -206,30 +226,42 @@ class Gan(ABC, Generic[G, D]):
                 )
                 training_step += 1
 
-            samples = self.generate(1)
-            dists = measure(samples, data)
-            mlflow.log_metrics(
-                {
-                    Metric.DISTANCE_MIN_EUCLIDEAN.value: dists[0],
-                    Metric.DISTANCE_MANHATTAN.value: dists[1],
-                },
-                epoch,
-            )
-            # dist = dynamic_time_warp(samples, data)
-            # mlflow.log_metric(Metric.DISTANCE_TIME_WARP.value, dist)
+            self.log_epoch(data, epoch)
 
             interval = num_epochs // Gan.N_CHECKPOINTS
             if (epoch + 1) % interval == 0:
-                checkpoint_num = (epoch + 1) // interval
-                mlflow.keras.log_model(self.combined, f"models/gan_{checkpoint_num}")
-                mlflow.keras.log_model(
-                    self.generator, f"models/generator_{checkpoint_num}"
-                )
-                mlflow.keras.log_model(
-                    self.discriminator, f"models/discriminator_{checkpoint_num}"
-                )
+                self.log_checkpoint(data, (epoch + 1) // interval)
 
         mlflow.end_run()
+
+    def log_epoch(self, data: NumpySequences, epoch: int) -> None:
+        if self.num_classes == 1:
+            samples = self.generate(1)
+        else:
+            samples = numpy.array(
+                [self.generate(1, i) for i in range(self.num_classes)]
+            )
+        dist = create_epoch_measurements(samples, data)
+        mlflow.log_metric(Metric.DISTANCE_MIN_EUCLIDEAN.value, dist, epoch)
+
+    def log_checkpoint(self, data: NumpySequences, checkpoint_num: int) -> None:
+        mlflow.keras.log_model(self.combined, f"models/gan-{checkpoint_num}")
+        mlflow.keras.log_model(self.generator, f"models/generator-{checkpoint_num}")
+        mlflow.keras.log_model(
+            self.discriminator, f"models/discriminator-{checkpoint_num}"
+        )
+
+        if self.num_classes > 1:
+            filename = f"confusion-{checkpoint_num}.txt"
+            with open(filename, "w") as file:
+                samples = numpy.array(
+                    [self.generate(1, i) for i in range(self.num_classes)]
+                )
+                confusion_matrix = create_confusion_matrix(samples, data)
+                numpy.set_printoptions(formatter={"float": "{: 0.3f}".format})
+                file.write(str(confusion_matrix))
+                numpy.set_printoptions()
+            mlflow.log_artifact(filename)
 
     def create_ground_values(
         self, n_samples: int
@@ -256,7 +288,7 @@ class SimpleGan(Gan[G, D]):
         optimizer: Optimizer,
         smoothing_type: SmoothingType = None,
     ) -> None:
-        Gan.__init__(self, generator, discriminator, optimizer)
+        Gan.__init__(self, 1, generator, discriminator, optimizer)
         if smoothing_type:
             self.smoothing_type = smoothing_type
 
@@ -326,11 +358,10 @@ class CGan(Gan[G_E, D_E]):
         optimizer: Optimizer,
         smoothing_type: SmoothingType = None,
     ) -> None:
-        self.num_classes = num_classes
         if smoothing_type:
             self.smoothing_type = smoothing_type
 
-        Gan.__init__(self, generator, discriminator, optimizer)
+        Gan.__init__(self, num_classes, generator, discriminator, optimizer)
 
     def _create_param_dict(self) -> Dict[str, Any]:
         return {}
@@ -369,7 +400,6 @@ class CGan(Gan[G_E, D_E]):
     ) -> Tuple[float, int, float]:
 
         labels = real_classes.argmax(axis=-1)
-        print(labels)
 
         # ---------------------
         #  Train Discriminator
@@ -393,9 +423,89 @@ class CGan(Gan[G_E, D_E]):
         # ---------------------
 
         sampled_labels = numpy.random.randint(
-            0, self.num_classes, real_sequences.shape[0]
-        ).reshape(-1, 1)
+            0, self.num_classes, (real_sequences.shape[0], 1)
+        )
 
         g_loss = self.combined.train_on_batch([latents, sampled_labels], ground_real)
 
         return d_loss, d_accuracy, g_loss
+
+
+D_L = TypeVar("D_L", bound=LabelingDiscriminator)
+
+
+class AcGan(CGan[G_E, D_L]):
+
+    DESCRIPTION = "Auxiliary Classifier GAN"
+
+    def __init__(
+        self,
+        num_classes: int,
+        generator: G_E,
+        discriminator: D_L,
+        optimizer: Optimizer,
+        smoothing_type: SmoothingType = None,
+    ) -> None:
+        CGan.__init__(
+            self, num_classes, generator, discriminator, optimizer, smoothing_type
+        )
+
+    def combine(self, optimizer: Optimizer) -> Model:
+        latent = Input((self.generator.latent_size,))
+        target_label = Input((1,))
+
+        generated_sequence = self.generator([latent, target_label])
+
+        self.discriminator.trainable = False
+
+        discrimination, predicted_label = self.discriminator(generated_sequence)
+
+        model = Model([latent, target_label], [discrimination, predicted_label])
+        model.compile(
+            loss=["binary_crossentropy", "sparse_categorical_crossentropy"],
+            optimizer=optimizer,
+        )
+
+        return model
+
+    def _batch_step(
+        self,
+        real_sequences: numpy.ndarray,
+        real_classes: numpy.ndarray,
+        ground_real: numpy.ndarray,
+        ground_fake: numpy.ndarray,
+    ) -> Tuple[float, int, float]:
+
+        labels = real_classes.argmax(axis=-1).reshape(-1, 1)
+
+        # ---------------------
+        #  Train Discriminator
+        # ---------------------
+
+        latents = self.generate_latents(real_sequences.shape[0])
+
+        sampled_labels = self.generate_labels(real_sequences.shape[0], False)
+
+        generated_sequence = self.generator.predict([latents, labels])
+
+        d_loss_real = self.discriminator.train_on_batch(
+            real_sequences, [ground_real, labels]
+        )
+        d_loss_fake = self.discriminator.train_on_batch(
+            generated_sequence, [ground_fake, sampled_labels]
+        )
+        d_loss, *_, disc_accuracy, cls_accuracy = 0.5 * numpy.add(
+            d_loss_real, d_loss_fake
+        )
+        d_accuracy = (disc_accuracy + cls_accuracy) / 2
+        d_accuracy = int(round(d_accuracy * 100))
+
+        # ---------------------
+        #  Train Generator
+        # ---------------------
+
+        g_loss = self.combined.train_on_batch(
+            [latents, sampled_labels], [ground_real, sampled_labels]
+        )
+
+        return d_loss, d_accuracy, g_loss[0]
