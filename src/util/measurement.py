@@ -50,7 +50,10 @@ def create_confusion_matrix(
             diffs = sequences - sample
             euclidean = numpy.linalg.norm(diffs, axis=(-1, -2))
             for i, data_label in enumerate(labels):
-                euclideans[sample_label][data_label].append(euclidean[i])
+                if len(samples) > 1:
+                    euclideans[sample_label][data_label].append(euclidean[i])
+                else:
+                    euclideans[0][0].append(euclidean[i])
 
     for i in range(len(euclideans)):
         for j in range(len(euclideans[i])):

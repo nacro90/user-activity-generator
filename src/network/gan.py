@@ -1,54 +1,30 @@
 import os
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import (
-    Any,
-    ClassVar,
-    Dict,
-    Generic,
-    Iterable,
-    Sequence,
-    Tuple,
-    TypeVar,
-    Union,
-)
+from typing import (Any, ClassVar, Dict, Generic, Iterable, Optional, Sequence,
+                    Tuple, TypeVar, Union)
 
 import mlflow
 import mlflow.keras
 import numpy
+from keras import backend
 from keras.callbacks import EarlyStopping, History, TerminateOnNaN
-from keras.layers import (
-    Activation,
-    BatchNormalization,
-    Dense,
-    Dropout,
-    Embedding,
-    Flatten,
-    Input,
-    Reshape,
-    ZeroPadding2D,
-    multiply,
-)
+from keras.layers import (Activation, BatchNormalization, Dense, Dropout,
+                          Embedding, Flatten, Input, Reshape, ZeroPadding2D,
+                          multiply)
 from keras.layers.advanced_activations import LeakyReLU
 from keras.models import Model, Sequential
 from keras.optimizers import SGD, Adam, Optimizer
 
 from ..data.window import NumpySequences
-from ..util.measurement import (
-    create_confusion_matrix,
-    create_epoch_measurements,
-    dynamic_time_warp,
-    measure,
-    min_euclidean,
-)
-from .discriminator import (
-    Discriminator,
-    EmbeddingDiscriminator,
-    EmbeddingMlpDisc,
-    LabelingDiscriminator,
-    SimpleMlpDisc,
-)
-from .generator import EmbeddingGenerator, EmbeddingMlpGen, Generator, SimpleMlpGen
+from ..util.measurement import (create_confusion_matrix,
+                                create_epoch_measurements, dynamic_time_warp,
+                                measure, min_euclidean)
+from .discriminator import (Discriminator, EmbeddingDiscriminator,
+                            EmbeddingMlpDisc, LabelingDiscriminator,
+                            SimpleMlpDisc)
+from .generator import (EmbeddingGenerator, EmbeddingMlpGen, Generator,
+                        SimpleMlpGen)
 
 G = TypeVar("G", bound=Generator)
 D = TypeVar("D", bound=Discriminator)
@@ -92,11 +68,12 @@ class Gan(ABC, Generic[G, D]):
 
     def __init__(
         self,
-        num_classes: int,
         generator: G,
         discriminator: D,
         optimizer: Optimizer,
         smoothing_type: SmoothingType = SmoothingType.PULL_DOWN,
+        max_n_batch: Optional[int] = None,
+        num_classes: int = 1,
     ) -> None:
         if generator.CONDITIONAL != discriminator.CONDITIONAL:
             raise ValueError(
@@ -117,7 +94,6 @@ class Gan(ABC, Generic[G, D]):
         params = self.create_param_dict()
         params.update(self.generator.create_param_dict())
         params.update(self.discriminator.create_param_dict())
-        params.update({Param.NUM_CHECKPOINTS.value: self.N_CHECKPOINTS})
         mlflow.log_params(params)
 
         mlflow.set_tag(Tag.MLFLOW_NOTE.value, self.create_note_content())
@@ -192,6 +168,7 @@ class Gan(ABC, Generic[G, D]):
                 Param.OPTIMIZER_TYPE.value: self.optimizer.__class__.__name__,
                 Param.OPTIMIZER_PARAMS.value: self.optimizer.get_config(),
                 Param.SMOOTHING_TYPE.value: self.smoothing_type.name,
+                Param.NUM_CHECKPOINTS.value: self.N_CHECKPOINTS,
             }
         )
         return params
@@ -224,6 +201,12 @@ class Gan(ABC, Generic[G, D]):
                     },
                     training_step,
                 )
+
+                if self.max_n_batch:
+                    if batch == self.max_n_batch:
+                        break
+                    data.shuffle_indexes()
+
                 training_step += 1
 
             self.log_epoch(data, epoch)
@@ -361,7 +344,7 @@ class CGan(Gan[G_E, D_E]):
         if smoothing_type:
             self.smoothing_type = smoothing_type
 
-        Gan.__init__(self, num_classes, generator, discriminator, optimizer)
+        Gan.__init__(self, generator, discriminator, optimizer, num_classes=num_classes)
 
     def _create_param_dict(self) -> Dict[str, Any]:
         return {}
@@ -447,7 +430,12 @@ class AcGan(CGan[G_E, D_L]):
         smoothing_type: SmoothingType = None,
     ) -> None:
         CGan.__init__(
-            self, num_classes, generator, discriminator, optimizer, smoothing_type
+            self,
+            generator,
+            discriminator,
+            optimizer,
+            smoothing_type,
+            num_classes=num_classes,
         )
 
     def combine(self, optimizer: Optimizer) -> Model:
@@ -509,3 +497,101 @@ class AcGan(CGan[G_E, D_L]):
         )
 
         return d_loss, d_accuracy, g_loss[0]
+
+
+class WGan(Gan[G, D]):  # TODO Use with RMSprop(lr=0.00005)
+
+    DESCRIPTION: ClassVar[str] = "Conditional GAN"
+    CLIP_VALUE: ClassVar[float] = 0.01
+
+    def __init__(
+        self,
+        generator: G_E,
+        discriminator: D_E,
+        optimizer: Optimizer,
+        max_n_batch: int,
+        smoothing_type: SmoothingType = None,
+    ) -> None:
+
+        Gan.__init__(
+            self, generator, discriminator, optimizer,
+        )
+
+        self.max_n_batch = max_n_batch
+
+        if smoothing_type:
+            self.smoothing_type = smoothing_type
+
+        self.discriminator.compile(
+            loss=self.wasserstein_loss, optimizer=optimizer, metrics=["accuracy"]
+        )
+
+    def _create_param_dict(self) -> Dict[str, Any]:
+        return {}
+
+    def combine(self, optimizer: Optimizer) -> Model:
+        latent = Input((self.generator.latent_size,))
+
+        generated_sequence = self.generator(latent)
+
+        self.discriminator.trainable = False
+
+        discrimination = self.discriminator(generated_sequence)
+
+        model = Model(latent, discrimination)
+        model.compile(
+            loss=self.wasserstein_loss, optimizer=optimizer, metrics=["accuracy"]
+        )
+        return model
+
+    def wasserstein_loss(self, y_true, y_pred):
+        return backend.mean(y_true * y_pred)
+
+    def generate(self, num_samples: int, label: int = None) -> numpy.ndarray:
+        latents = self.generate_latents(num_samples)
+        labels = (
+            numpy.array([label] * num_samples)
+            if label
+            else numpy.random.randint(0, self.num_classes, num_samples).reshape(-1, 1)
+        )
+
+        return self.generator.predict(latents)
+
+    def _batch_step(
+        self,
+        real_sequences: numpy.ndarray,
+        real_classes: numpy.ndarray,
+        ground_real: numpy.ndarray,
+        ground_fake: numpy.ndarray,
+    ) -> Tuple[float, int, float]:
+
+        labels = real_classes.argmax(axis=-1)
+
+        # ---------------------
+        #  Train Discriminator
+        # ---------------------
+
+        latents = self.generate_latents(real_sequences.shape[0])
+
+        generated_sequence = self.generator.predict(latents)
+
+        d_loss_real = self.discriminator.train_on_batch(real_sequences, ground_real)
+        d_loss_fake = self.discriminator.train_on_batch(generated_sequence, ground_fake)
+        d_loss, d_accuracy = 0.5 * numpy.add(d_loss_real, d_loss_fake)
+        d_accuracy = int(round(d_accuracy * 100))
+
+        # Clip critic weights
+        for l in self.discriminator.layers:
+            weights = l.get_weights()
+            weights = [
+                numpy.clip(w, -WGan.CLIP_VALUE, WGan.CLIP_VALUE) for w in weights
+            ]
+            l.set_weights(weights)
+
+        # ---------------------
+        #  Train Generator
+        # ---------------------
+
+        g_loss = self.combined.train_on_batch(latents, ground_real)
+
+        return 1 - d_loss, d_accuracy, 1 - g_loss[0]

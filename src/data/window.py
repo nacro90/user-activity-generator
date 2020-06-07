@@ -48,6 +48,9 @@ class WindowSequence(Sequence[Tuple[DataFrame, DataFrame]]):
     def __len__(self) -> int:
         return sum(self.len_of_dataframe(df) for df in self.sequences)
 
+    def shuffle_indexes(self, seed: Optional[int]) -> None:
+        self.random_indexes = self.create_random_indexes(seed)
+
     def get_shape(self, only_numeric: bool = True) -> Tuple[int, int]:
         num_columns = None
         if not only_numeric:
@@ -107,3 +110,6 @@ class NumpySequences(KerasSequence):
 
     def __len__(self) -> int:
         return len(self.window_sequence) // self.batch_size
+
+    def shuffle_indexes(self, seed: Optional[int] = None) -> None:
+        self.window_sequence.shuffle_indexes(seed)
