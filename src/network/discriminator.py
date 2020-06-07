@@ -3,16 +3,8 @@ from enum import Enum
 from typing import Any, ClassVar, Dict, Tuple
 
 import numpy
-from keras.layers import (
-    Dense,
-    Dropout,
-    Embedding,
-    Flatten,
-    Input,
-    Layer,
-    LeakyReLU,
-    multiply,
-)
+from keras.layers import (Dense, Dropout, Embedding, Flatten, Input, Layer,
+                          LeakyReLU, multiply)
 from keras.models import Model, Sequential
 from keras.optimizers import Optimizer
 
@@ -49,7 +41,14 @@ class Discriminator(ABC, Model):
         y = x
         for layer in range(num_layers):
             y = Dense(
-                round(numpy.prod(self.in_shape) * ((num_layers - layer) / num_layers))
+                int(
+                    round(
+                        numpy.prod(self.in_shape)
+                        * 2
+                        * self.layer_multiplier
+                        * ((num_layers - layer) / num_layers)
+                    )
+                )
             )(y)
             y = LeakyReLU(alpha=leaky_relu_alpha)(y)
             y = Dropout(dropout)(y)
@@ -96,7 +95,7 @@ class SimpleMlpDisc(Discriminator):
         self.leaky_relu_alpha = leaky_relu_alpha
 
         x = Input(in_shape)
-        y = Flatten()(x)
+        y = Flatten()(x) if len(x.shape) > 2 else x
         y = self.create_mlp_interim(y, num_layers, leaky_relu_alpha, dropout)
         y = Dense(1, activation="sigmoid")(y)
 

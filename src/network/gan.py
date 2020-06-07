@@ -10,8 +10,8 @@ import numpy
 from keras import backend
 from keras.callbacks import EarlyStopping, History, TerminateOnNaN
 from keras.layers import (Activation, BatchNormalization, Dense, Dropout,
-                          Embedding, Flatten, Input, Reshape, ZeroPadding2D,
-                          multiply)
+                          Embedding, Flatten, Input, Lambda, Reshape,
+                          ZeroPadding2D, concatenate, multiply)
 from keras.layers.advanced_activations import LeakyReLU
 from keras.models import Model, Sequential
 from keras.optimizers import SGD, Adam, Optimizer
@@ -53,6 +53,7 @@ class Tag(Enum):
     MLFLOW_NOTE = "mlflow.note.content"
     INFINITE = "infinite"
     CONDITIONAL = "conditional"
+    FAILURE = "failure"
 
 
 class SmoothingType(Enum):
@@ -88,6 +89,7 @@ class Gan(ABC, Generic[G, D]):
         self.generator = generator
         self.discriminator = discriminator
         self.combined = self.combine(optimizer)
+        self.max_n_batch = max_n_batch
 
         mlflow.start_run(run_name=self.run_name)
 
@@ -190,6 +192,12 @@ class Gan(ABC, Generic[G, D]):
                 d_loss, d_accuracy, g_loss = self._batch_step(
                     real_sequences, real_classes, ground_real, ground_fake
                 )
+                if numpy.isnan(d_loss) or numpy.isnan(g_loss):
+                    print(
+                        f"NaN's detected in the result: d_loss:{d_loss}, d_accuracy:{d_accuracy}, g_loss:{g_loss}"
+                    )
+                    mlflow.set_tag(Tag.FAILURE.value, "NaN")
+                    return
                 print(
                     f"E:{epoch+1:2} | B:{batch+1:>4}/{len(data):<4} [D loss: {d_loss:2.3f}, acc: %{d_accuracy:2}] [G loss: {g_loss:2.3f}]"
                 )
@@ -271,7 +279,7 @@ class SimpleGan(Gan[G, D]):
         optimizer: Optimizer,
         smoothing_type: SmoothingType = None,
     ) -> None:
-        Gan.__init__(self, 1, generator, discriminator, optimizer)
+        Gan.__init__(self, generator, discriminator, optimizer)
         if smoothing_type:
             self.smoothing_type = smoothing_type
 
@@ -431,11 +439,11 @@ class AcGan(CGan[G_E, D_L]):
     ) -> None:
         CGan.__init__(
             self,
+            num_classes,
             generator,
             discriminator,
             optimizer,
             smoothing_type,
-            num_classes=num_classes,
         )
 
     def combine(self, optimizer: Optimizer) -> Model:
@@ -501,13 +509,13 @@ class AcGan(CGan[G_E, D_L]):
 
 class WGan(Gan[G, D]):  # TODO Use with RMSprop(lr=0.00005)
 
-    DESCRIPTION: ClassVar[str] = "Conditional GAN"
+    DESCRIPTION: ClassVar[str] = "Wasserstein GAN"
     CLIP_VALUE: ClassVar[float] = 0.01
 
     def __init__(
         self,
-        generator: G_E,
-        discriminator: D_E,
+        generator: G,
+        discriminator: D,
         optimizer: Optimizer,
         max_n_batch: int,
         smoothing_type: SmoothingType = None,
@@ -516,8 +524,6 @@ class WGan(Gan[G, D]):  # TODO Use with RMSprop(lr=0.00005)
         Gan.__init__(
             self, generator, discriminator, optimizer,
         )
-
-        self.max_n_batch = max_n_batch
 
         if smoothing_type:
             self.smoothing_type = smoothing_type
@@ -544,7 +550,7 @@ class WGan(Gan[G, D]):  # TODO Use with RMSprop(lr=0.00005)
         )
         return model
 
-    def wasserstein_loss(self, y_true, y_pred):
+    def wasserstein_loss(self, y_true: Any, y_pred: Any) -> Any:
         return backend.mean(y_true * y_pred)
 
     def generate(self, num_samples: int, label: int = None) -> numpy.ndarray:
@@ -595,3 +601,204 @@ class WGan(Gan[G, D]):  # TODO Use with RMSprop(lr=0.00005)
         g_loss = self.combined.train_on_batch(latents, ground_real)
 
         return 1 - d_loss, d_accuracy, 1 - g_loss[0]
+
+
+class AdversarialAutoencoder(Gan[G, D]):
+
+    DESCRIPTION = "Adversarial Autoencoder. Discriminates between encoded data and random latent numbers"
+
+    def __init__(
+        self,
+        generator: G,  # Generator is a decoder
+        discriminator: D,
+        optimizer: Optimizer,
+        num_encoding_layer: int,
+        smoothing_type: SmoothingType = None,
+    ) -> None:
+        if smoothing_type:
+            self.smoothing_type = smoothing_type
+
+        self.num_encoding_layer = num_encoding_layer
+        self.encoder = self.build_encoder(generator)
+
+        Gan.__init__(self, generator, discriminator, optimizer)
+
+    def build_encoder(self, generator: G) -> Model:
+        def sampling(args: Any) -> Any:
+            z_mean, z_log_var = args
+            batch = backend.shape(z_mean)[0]
+            dim = backend.int_shape(z_mean)[1]
+            epsilon = backend.random_normal(shape=(batch, dim))
+            return z_mean + backend.exp(0.5 * z_log_var) * epsilon
+
+        x = Input(generator.out_shape)
+        y = Flatten()(x)
+        for _ in range(self.num_encoding_layer):
+            y = Dense(numpy.prod(generator.out_shape))(y)
+            y = LeakyReLU(alpha=generator.leaky_relu_alpha)(y)
+        mu = Dense(generator.latent_size)(y)
+        log_var = Dense(generator.latent_size)(y)
+        latent_repr = Lambda(
+            sampling,
+            output_shape=(generator.latent_size,),
+            name="latent_representation",
+        )([mu, log_var])
+
+        return Model(x, latent_repr)
+
+    def _create_param_dict(self) -> Dict[str, Any]:
+        return {}
+
+    def combine(self, optimizer: Optimizer) -> Model:
+        x = Input(self.generator.out_shape)
+        encoded_x = self.encoder(x)
+        decoded_x = self.generator(encoded_x)
+        self.discriminator.trainable = False
+        discrimination = self.discriminator(encoded_x)
+        model = Model(x, [decoded_x, discrimination])
+        model.compile(
+            loss=["mse", "binary_crossentropy"],
+            loss_weights=[0.999, 0.001],
+            optimizer=optimizer,
+        )
+        return model
+
+    def generate(self, num_samples: int, _: int = None) -> numpy.ndarray:
+        latents = self.generate_latents(num_samples)
+        return self.generator.predict(latents)
+
+    def _batch_step(
+        self,
+        real_sequences: numpy.ndarray,
+        real_classes: numpy.ndarray,
+        ground_real: numpy.ndarray,
+        ground_fake: numpy.ndarray,
+    ) -> Tuple[float, int, float]:
+
+        # ---------------------
+        #  Train Discriminator
+        # ---------------------
+
+        # generated_sequences = self.generator.predict(latents)
+
+        latent_fake = self.encoder.predict(real_sequences)
+        latent_real = self.generate_latents(real_sequences.shape[0])
+
+        # Train the discriminator
+        d_loss_real = self.discriminator.train_on_batch(latent_real, ground_real)
+        d_loss_fake = self.discriminator.train_on_batch(latent_fake, ground_fake)
+        d_loss, d_accuracy = 0.5 * numpy.add(d_loss_real, d_loss_fake)
+        d_accuracy = int(round(d_accuracy * 100))
+
+        # ---------------------
+        #  Train Generator
+        # ---------------------
+
+        latents = self.generate_latents(real_sequences.shape[0])
+        g_loss = self.combined.train_on_batch(
+            real_sequences, [real_sequences, ground_real]
+        )
+
+        return d_loss, d_accuracy, g_loss[0]
+
+
+class VaeGan(Gan[G, D]):
+
+    DESCRIPTION = "Variational Adversarial Autoencoder. Discriminates between encoded-decoded data and decoded random latent numbers"
+
+    def __init__(
+        self,
+        generator: G,  # Generator is a decoder
+        discriminator: D,
+        optimizer: Optimizer,
+        num_encoding_layer: int,
+        smoothing_type: SmoothingType = None,
+    ) -> None:
+        if smoothing_type:
+            self.smoothing_type = smoothing_type
+
+        self.num_encoding_layer = num_encoding_layer
+        self.encoder = self.build_encoder(generator)
+
+        Gan.__init__(self, generator, discriminator, optimizer)
+
+    def build_encoder(self, generator: G) -> Model:
+        def sampling(args: Any) -> Any:
+            z_mean, z_log_var = args
+            batch = backend.shape(z_mean)[0]
+            dim = backend.int_shape(z_mean)[1]
+            epsilon = backend.random_normal(shape=(batch, dim))
+            return z_mean + backend.exp(0.5 * z_log_var) * epsilon
+
+        x = Input(generator.out_shape)
+        y = Flatten()(x)
+        for _ in range(self.num_encoding_layer):
+            y = Dense(numpy.prod(generator.out_shape))(y)
+            y = LeakyReLU(alpha=generator.leaky_relu_alpha)(y)
+        mu = Dense(generator.latent_size)(y)
+        log_var = Dense(generator.latent_size)(y)
+        latent_repr = Lambda(
+            sampling,
+            output_shape=(generator.latent_size,),
+            name="latent_representation",
+        )([mu, log_var])
+
+        return Model(x, latent_repr)
+
+    def _create_param_dict(self) -> Dict[str, Any]:
+        return {}
+
+    def combine(self, optimizer: Optimizer) -> Model:
+        x = Input(self.generator.out_shape)
+        encoded_x = self.encoder(x)
+        decoded_x = self.generator(encoded_x)
+        self.discriminator.trainable = False
+        discrimination = self.discriminator(decoded_x)
+        model = Model(x, [decoded_x, discrimination])
+        model.compile(
+            loss=["mse", "binary_crossentropy"],
+            loss_weights=[0.999, 0.001],
+            optimizer=optimizer,
+        )
+        return model
+
+    def generate(self, num_samples: int, _: int = None) -> numpy.ndarray:
+        latents = self.generate_latents(num_samples)
+        return self.generator.predict(latents)
+
+    def _batch_step(
+        self,
+        real_sequences: numpy.ndarray,
+        real_classes: numpy.ndarray,
+        ground_real: numpy.ndarray,
+        ground_fake: numpy.ndarray,
+    ) -> Tuple[float, int, float]:
+
+        # ---------------------
+        #  Train Discriminator
+        # ---------------------
+
+        # generated_sequences = self.generator.predict(latents)
+
+        latent_fake = self.encoder.predict(real_sequences)
+        latent_real = self.generate_latents(real_sequences.shape[0])
+
+        decoded_real = self.generator.predict(latent_fake)
+        decoded_latent = self.generator.predict(latent_real)
+
+        # Train the discriminator
+        d_loss_real = self.discriminator.train_on_batch(decoded_real, ground_real)
+        d_loss_fake = self.discriminator.train_on_batch(decoded_latent, ground_fake)
+        d_loss, d_accuracy = 0.5 * numpy.add(d_loss_real, d_loss_fake)
+        d_accuracy = int(round(d_accuracy * 100))
+
+        # ---------------------
+        #  Train Generator
+        # ---------------------
+
+        latents = self.generate_latents(real_sequences.shape[0])
+        g_loss = self.combined.train_on_batch(
+            real_sequences, [real_sequences, ground_real]
+        )
+
+        return d_loss, d_accuracy, g_loss[0]
