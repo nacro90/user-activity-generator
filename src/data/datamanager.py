@@ -50,7 +50,7 @@ class DataManager:
             return pandas.read_parquet(
                 f"{Config.INTERIM_ROOT}/{bypass_raw}",
                 columns=columns if columns else list(self.dataset.COLUMNS.keys()),
-            )
+            ).astype({self.dataset.ACTIVITY_COLUMN: "category"})
 
     def create_windows(
         self,
