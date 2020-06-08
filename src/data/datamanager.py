@@ -1,7 +1,7 @@
 import random
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, ClassVar, List, Literal, Optional, Sequence, Set, Tuple
+from typing import Any, ClassVar, List, Optional, Sequence, Set, Tuple
 
 import numpy
 import pandas
