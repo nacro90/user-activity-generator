@@ -9,7 +9,7 @@ import mlflow.keras
 import numpy
 from keras import backend
 from keras.callbacks import EarlyStopping, History, TerminateOnNaN
-from keras.layers import (Activation, BatchNormalization, Dense, Dropout,
+from keras.layers import (LSTM, Activation, BatchNormalization, Dense, Dropout,
                           Embedding, Flatten, Input, Lambda, Reshape,
                           ZeroPadding2D, concatenate, multiply)
 from keras.layers.advanced_activations import LeakyReLU
@@ -64,7 +64,8 @@ class SmoothingType(Enum):
 
 class Gan(ABC, Generic[G, D]):
 
-    N_CHECKPOINTS: ClassVar[int] = 3
+    N_CHECKPOINTS: ClassVar[int] = 4
+    N_SAMPLES: ClassVar[int] = 8
     DESCRIPTION: ClassVar[str] = NotImplemented
 
     def __init__(
@@ -188,6 +189,7 @@ class Gan(ABC, Generic[G, D]):
 
         training_step = 0
         for epoch in range(num_epochs):
+            print(f"Starting epoch {epoch + 1}")
             for batch, (real_sequences, real_classes) in enumerate(data):
                 d_loss, d_accuracy, g_loss = self._batch_step(
                     real_sequences, real_classes, ground_real, ground_fake
@@ -198,17 +200,6 @@ class Gan(ABC, Generic[G, D]):
                     )
                     mlflow.set_tag(Tag.FAILURE.value, "NaN")
                     return
-                print(
-                    f"E:{epoch+1:2} | B:{batch+1:>4}/{len(data):<4} [D loss: {d_loss:2.3f}, acc: %{d_accuracy:2}] [G loss: {g_loss:2.3f}]"
-                )
-                mlflow.log_metrics(
-                    {
-                        Metric.DISCRIMINATOR_LOSS.value: d_loss,
-                        Metric.DISCRIMINATOR_ACCURACY.value: d_accuracy,
-                        Metric.GENERATOR_LOSS.value: g_loss,
-                    },
-                    training_step,
-                )
 
                 if self.max_n_batch:
                     if batch == self.max_n_batch:
@@ -217,22 +208,40 @@ class Gan(ABC, Generic[G, D]):
 
                 training_step += 1
 
-            self.log_epoch(data, epoch)
+            print(
+                f"[D loss: {d_loss:2.3f}, acc: %{d_accuracy:2}] [G loss: {g_loss:2.3f}]"
+            )
+            self.log_epoch(data, d_loss, d_accuracy, g_loss, epoch)
 
             interval = num_epochs // Gan.N_CHECKPOINTS
             if (epoch + 1) % interval == 0:
                 self.log_checkpoint(data, (epoch + 1) // interval)
 
         mlflow.end_run()
+        print("Done!")
 
-    def log_epoch(self, data: NumpySequences, epoch: int) -> None:
-        if self.num_classes == 1:
-            samples = self.generate(1)
-        else:
-            samples = numpy.array(
-                [self.generate(1, i) for i in range(self.num_classes)]
-            )
-        dist = create_epoch_measurements(samples, data)
+    def log_epoch(
+        self,
+        data: NumpySequences,
+        d_loss: Any,
+        d_accuracy: Any,
+        g_loss: Any,
+        epoch: int,
+    ) -> None:
+        mlflow.log_metrics(
+            {
+                Metric.DISCRIMINATOR_LOSS.value: d_loss,
+                Metric.DISCRIMINATOR_ACCURACY.value: d_accuracy,
+                Metric.GENERATOR_LOSS.value: g_loss,
+            },
+            epoch,
+        )
+        samples = numpy.concatenate(
+            [self.generate(Gan.N_SAMPLES, i) for i in range(self.num_classes)]
+        )
+        dist = create_epoch_measurements(
+            samples, data, data.window_sequence.num_classes
+        )
         mlflow.log_metric(Metric.DISTANCE_MIN_EUCLIDEAN.value, dist, epoch)
 
     def log_checkpoint(self, data: NumpySequences, checkpoint_num: int) -> None:
@@ -242,17 +251,19 @@ class Gan(ABC, Generic[G, D]):
             self.discriminator, f"models/discriminator-{checkpoint_num}"
         )
 
-        if self.num_classes > 1:
-            filename = f"confusion-{checkpoint_num}.txt"
-            with open(filename, "w") as file:
-                samples = numpy.array(
-                    [self.generate(1, i) for i in range(self.num_classes)]
-                )
-                confusion_matrix = create_confusion_matrix(samples, data)
-                numpy.set_printoptions(formatter={"float": "{: 0.3f}".format})
-                file.write(str(confusion_matrix))
-                numpy.set_printoptions()
-            mlflow.log_artifact(filename)
+        filename = f"confusion-{checkpoint_num}.txt"
+        with open(filename, "w") as file:
+            samples = numpy.concatenate(
+                [self.generate(Gan.N_SAMPLES, i) for i in range(self.num_classes)]
+            )
+            confusion_matrix = create_confusion_matrix(
+                samples, data, data.window_sequence.num_classes
+            )
+            numpy.set_printoptions(formatter={"float": "{: 0.3f}".format})
+            file.write(str(confusion_matrix))
+            numpy.set_printoptions()
+        mlflow.log_artifact(filename)
+        os.remove(filename)
 
     def create_ground_values(
         self, n_samples: int
@@ -297,7 +308,7 @@ class SimpleGan(Gan[G, D]):
 
     def generate(self, num_samples: int, _: int = None) -> numpy.ndarray:
         latents = self.generate_latents(num_samples)
-        return self.generator.predict(latents)
+        return numpy.expand_dims(self.generator.predict(latents), axis=0)
 
     def _batch_step(
         self,
@@ -379,8 +390,7 @@ class CGan(Gan[G_E, D_E]):
             if label
             else numpy.random.randint(0, self.num_classes, num_samples).reshape(-1, 1)
         )
-
-        return self.generator.predict([latents, labels])
+        return numpy.expand_dims(self.generator.predict([latents, labels]), axis=0)
 
     def _batch_step(
         self,
@@ -438,12 +448,7 @@ class AcGan(CGan[G_E, D_L]):
         smoothing_type: SmoothingType = None,
     ) -> None:
         CGan.__init__(
-            self,
-            num_classes,
-            generator,
-            discriminator,
-            optimizer,
-            smoothing_type,
+            self, num_classes, generator, discriminator, optimizer, smoothing_type,
         )
 
     def combine(self, optimizer: Optimizer) -> Model:
@@ -553,15 +558,9 @@ class WGan(Gan[G, D]):  # TODO Use with RMSprop(lr=0.00005)
     def wasserstein_loss(self, y_true: Any, y_pred: Any) -> Any:
         return backend.mean(y_true * y_pred)
 
-    def generate(self, num_samples: int, label: int = None) -> numpy.ndarray:
+    def generate(self, num_samples: int, _: int = None) -> numpy.ndarray:
         latents = self.generate_latents(num_samples)
-        labels = (
-            numpy.array([label] * num_samples)
-            if label
-            else numpy.random.randint(0, self.num_classes, num_samples).reshape(-1, 1)
-        )
-
-        return self.generator.predict(latents)
+        return numpy.expand_dims(self.generator.predict(latents), axis=0)
 
     def _batch_step(
         self,
@@ -636,6 +635,10 @@ class AdversarialAutoencoder(Gan[G, D]):
         for _ in range(self.num_encoding_layer):
             y = Dense(numpy.prod(generator.out_shape))(y)
             y = LeakyReLU(alpha=generator.leaky_relu_alpha)(y)
+        y = Reshape((1, *y.shape[1:]))(y)
+        y = LSTM(
+            numpy.prod(generator.out_shape), dropout=generator.dropout, unroll=True
+        )(y)
         mu = Dense(generator.latent_size)(y)
         log_var = Dense(generator.latent_size)(y)
         latent_repr = Lambda(
@@ -665,7 +668,7 @@ class AdversarialAutoencoder(Gan[G, D]):
 
     def generate(self, num_samples: int, _: int = None) -> numpy.ndarray:
         latents = self.generate_latents(num_samples)
-        return self.generator.predict(latents)
+        return numpy.expand_dims(self.generator.predict(latents), axis=0)
 
     def _batch_step(
         self,
@@ -764,7 +767,7 @@ class VaeGan(Gan[G, D]):
 
     def generate(self, num_samples: int, _: int = None) -> numpy.ndarray:
         latents = self.generate_latents(num_samples)
-        return self.generator.predict(latents)
+        return numpy.expand_dims(self.generator.predict(latents), axis=0)
 
     def _batch_step(
         self,

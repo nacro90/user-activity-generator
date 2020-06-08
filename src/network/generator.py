@@ -14,6 +14,7 @@ from keras.layers import (
     LeakyReLU,
     Reshape,
     multiply,
+    LSTM
 )
 from keras.models import Model, Sequential
 
@@ -103,6 +104,8 @@ class SimpleMlpGen(Generator):
         y = self.create_mlp_interim(
             x, num_layers, layer_multiplier, bn_momentum, leaky_relu_alpha, dropout,
         )
+        y = Reshape((1, *y.shape[1:]))(y)
+        y = LSTM(numpy.prod(out_shape), dropout=dropout, unroll=True)(y)
         y = Dense(numpy.prod(out_shape), activation="tanh")(y)
         y = Reshape(out_shape)(y)
 
@@ -153,6 +156,8 @@ class EmbeddingMlpGen(EmbeddingGenerator):
         y = self.create_mlp_interim(
             x, num_layers, layer_multiplier, bn_momentum, leaky_relu_alpha, dropout,
         )
+        y = Reshape((1, *y.shape[1:]))(y)
+        y = LSTM(numpy.prod(out_shape), dropout=dropout, unroll=True)(y)
         y = Dense(numpy.prod(out_shape), activation="tanh")(y)
         y = Reshape(out_shape)(y)
 

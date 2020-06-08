@@ -37,23 +37,22 @@ def dynamic_time_warp(
 
 
 def create_confusion_matrix(
-    samples: numpy.ndarray, data: NumpySequences,
+    samples: numpy.ndarray, data: NumpySequences, num_classes: int
 ) -> numpy.ndarray:
 
     euclideans: List[List[List[float]]] = [
-        [[] for _ in range(len(samples))] for _ in range(len(samples))
+        [[] for _ in range(num_classes)] for _ in range(len(samples))
     ]
 
     for sequences, labels in data:
         labels = labels.argmax(axis=-1)
-        for sample_label, sample in enumerate(samples):
-            diffs = sequences - sample
+        for sample_label, sample_set in enumerate(samples):
+            diff_list = [sequences - sample for sample in sample_set]
+            diffs = numpy.asarray(diff_list)
+            diffs = diffs.mean(axis=0)
             euclidean = numpy.linalg.norm(diffs, axis=(-1, -2))
             for i, data_label in enumerate(labels):
-                if len(samples) > 1:
-                    euclideans[sample_label][data_label].append(euclidean[i])
-                else:
-                    euclideans[0][0].append(euclidean[i])
+                euclideans[sample_label][data_label].append(euclidean[i])
 
     for i in range(len(euclideans)):
         for j in range(len(euclideans[i])):
@@ -64,10 +63,9 @@ def create_confusion_matrix(
 
 
 def create_epoch_measurements(
-    samples: numpy.ndarray, data: NumpySequences,
+    samples: numpy.ndarray, data: NumpySequences, num_classes: int
 ) -> numpy.ndarray:
-
-    return create_confusion_matrix(samples, data).min(axis=-1).mean()
+    return create_confusion_matrix(samples, data, num_classes).min(axis=-1).mean()
 
 
 def measure(

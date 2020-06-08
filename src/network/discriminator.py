@@ -3,8 +3,8 @@ from enum import Enum
 from typing import Any, ClassVar, Dict, Tuple
 
 import numpy
-from keras.layers import (Dense, Dropout, Embedding, Flatten, Input, Layer,
-                          LeakyReLU, multiply)
+from keras.layers import (LSTM, Dense, Dropout, Embedding, Flatten, Input,
+                          Layer, LeakyReLU, Reshape, multiply)
 from keras.models import Model, Sequential
 from keras.optimizers import Optimizer
 
@@ -40,16 +40,15 @@ class Discriminator(ABC, Model):
     ) -> Layer:
         y = x
         for layer in range(num_layers):
-            y = Dense(
-                int(
-                    round(
-                        numpy.prod(self.in_shape)
-                        * 2
-                        * self.layer_multiplier
-                        * ((num_layers - layer) / num_layers)
-                    )
+            layer_size = int(
+                round(
+                    numpy.prod(self.in_shape)
+                    * 2
+                    * self.layer_multiplier
+                    * ((num_layers - layer) / num_layers)
                 )
-            )(y)
+            )
+            y = Dense(layer_size)(y)
             y = LeakyReLU(alpha=leaky_relu_alpha)(y)
             y = Dropout(dropout)(y)
         return y
@@ -97,6 +96,8 @@ class SimpleMlpDisc(Discriminator):
         x = Input(in_shape)
         y = Flatten()(x) if len(x.shape) > 2 else x
         y = self.create_mlp_interim(y, num_layers, leaky_relu_alpha, dropout)
+        y = Reshape((1, *y.shape[1:]))(y)
+        y = LSTM(numpy.prod(self.in_shape), dropout=dropout, unroll=True)(y)
         y = Dense(1, activation="sigmoid")(y)
 
         Model.__init__(self, inputs=x, outputs=y, name=name or self.__class__.__name__)
@@ -155,6 +156,8 @@ class EmbeddingMlpDisc(EmbeddingDiscriminator):
 
         x = multiply([flat_data, label_embedding])
         y = self.create_mlp_interim(x, num_layers, leaky_relu_alpha, dropout)
+        y = Reshape((1, *y.shape[1:]))(y)
+        y = LSTM(numpy.prod(self.in_shape), dropout=dropout, unroll=True)(y)
         y = Dense(1, activation="sigmoid")(y)
 
         Model.__init__(
