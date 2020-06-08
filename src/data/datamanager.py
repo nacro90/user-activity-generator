@@ -36,12 +36,21 @@ class DataManager:
         raw_dataframe.to_parquet(self.path)
         return raw_dataframe
 
-    def read(self, columns: List[str] = None, clean: bool = False) -> DataFrame:
-        if clean or self.is_interim_dirty():
-            self.convert_dataset()
-        return pandas.read_parquet(
-            self.path, columns=columns if columns else list(self.dataset.COLUMNS.keys())
-        )
+    def read(
+        self, columns: List[str] = None, clean: bool = False, bypass_raw: str = None
+    ) -> DataFrame:
+        if not bypass_raw:
+            if clean or self.is_interim_dirty():
+                self.convert_dataset()
+            return pandas.read_parquet(
+                self.path,
+                columns=columns if columns else list(self.dataset.COLUMNS.keys()),
+            )
+        else:
+            return pandas.read_parquet(
+                f"{Config.INTERIM_ROOT}/{bypass_raw}",
+                columns=columns if columns else list(self.dataset.COLUMNS.keys()),
+            )
 
     def create_windows(
         self,
@@ -53,6 +62,7 @@ class DataManager:
         shuffle: bool = False,
         seed: Optional[int] = None,
         columns: List[str] = None,
+        bypass_raw: str = None,
     ) -> DataFrame:
         stride = stride if stride else window
         data = self.read(
@@ -67,6 +77,7 @@ class DataManager:
             )
             if columns
             else None,
+            bypass_raw=bypass_raw
         )
         activity_keys = [self.dataset.ACTIVITIES[activity] for activity in activities]
         filtered = data.loc[data[self.dataset.ACTIVITY_COLUMN].isin(activity_keys)]
