@@ -4,6 +4,7 @@ from typing import Any, ClassVar, Dict, Tuple
 
 import numpy
 from keras.layers import (
+    LSTM,
     BatchNormalization,
     Dense,
     Dropout,
@@ -14,7 +15,6 @@ from keras.layers import (
     LeakyReLU,
     Reshape,
     multiply,
-    LSTM
 )
 from keras.models import Model, Sequential
 

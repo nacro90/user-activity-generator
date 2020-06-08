@@ -77,7 +77,7 @@ class DataManager:
             )
             if columns
             else None,
-            bypass_raw=bypass_raw
+            bypass_raw=bypass_raw,
         )
         activity_keys = [self.dataset.ACTIVITIES[activity] for activity in activities]
         filtered = data.loc[data[self.dataset.ACTIVITY_COLUMN].isin(activity_keys)]

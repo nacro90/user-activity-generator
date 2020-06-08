@@ -3,8 +3,18 @@ from enum import Enum
 from typing import Any, ClassVar, Dict, Tuple
 
 import numpy
-from keras.layers import (LSTM, Dense, Dropout, Embedding, Flatten, Input,
-                          Layer, LeakyReLU, Reshape, multiply)
+from keras.layers import (
+    LSTM,
+    Dense,
+    Dropout,
+    Embedding,
+    Flatten,
+    Input,
+    Layer,
+    LeakyReLU,
+    Reshape,
+    multiply,
+)
 from keras.models import Model, Sequential
 from keras.optimizers import Optimizer
 

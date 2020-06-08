@@ -1,30 +1,58 @@
 import os
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import (Any, ClassVar, Dict, Generic, Iterable, Optional, Sequence,
-                    Tuple, TypeVar, Union)
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    Generic,
+    Iterable,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 import mlflow
 import mlflow.keras
 import numpy
 from keras import backend
 from keras.callbacks import EarlyStopping, History, TerminateOnNaN
-from keras.layers import (LSTM, Activation, BatchNormalization, Dense, Dropout,
-                          Embedding, Flatten, Input, Lambda, Reshape,
-                          ZeroPadding2D, concatenate, multiply)
+from keras.layers import (
+    LSTM,
+    Activation,
+    BatchNormalization,
+    Dense,
+    Dropout,
+    Embedding,
+    Flatten,
+    Input,
+    Lambda,
+    Reshape,
+    ZeroPadding2D,
+    concatenate,
+    multiply,
+)
 from keras.layers.advanced_activations import LeakyReLU
 from keras.models import Model, Sequential
 from keras.optimizers import SGD, Adam, Optimizer
 
 from ..data.window import NumpySequences
-from ..util.measurement import (create_confusion_matrix,
-                                create_epoch_measurements, dynamic_time_warp,
-                                measure, min_euclidean)
-from .discriminator import (Discriminator, EmbeddingDiscriminator,
-                            EmbeddingMlpDisc, LabelingDiscriminator,
-                            SimpleMlpDisc)
-from .generator import (EmbeddingGenerator, EmbeddingMlpGen, Generator,
-                        SimpleMlpGen)
+from ..util.measurement import (
+    create_confusion_matrix,
+    create_epoch_measurements,
+    measure,
+    min_euclidean,
+)
+from .discriminator import (
+    Discriminator,
+    EmbeddingDiscriminator,
+    EmbeddingMlpDisc,
+    LabelingDiscriminator,
+    SimpleMlpDisc,
+)
+from .generator import EmbeddingGenerator, EmbeddingMlpGen, Generator, SimpleMlpGen
 
 G = TypeVar("G", bound=Generator)
 D = TypeVar("D", bound=Discriminator)
