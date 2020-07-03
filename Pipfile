@@ -21,6 +21,9 @@ plotly = "*"
 pyarrow = "*"
 tensorflow = "*"
 mlflow = "*"
+sklearn = "*"
+lightgbm = "*"
+seaborn = "*"
 
 [requires]
 python_version = "3.8"

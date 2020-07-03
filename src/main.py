@@ -1,22 +1,23 @@
+from src.data.datamanager import DataManager
+from src.data.window import WindowSequence, KerasSequence
+from src.data.dataset import MotionSense, Activity
+from src.visual.plotter import Plotter, VecData
+from src.network.gan import Gan, SimpleGan, SmoothingType, CGan, AdversarialAutoencoder, VaeGan
+from src.network.generator import SimpleMlpGen
+from src.network.discriminator import SimpleMlpDisc
+from keras.optimizers import SGD, Adam, RMSprop
 from pathlib import Path
 
 import toml
 
-from .data.datamanager import DataManager
-from .data.dataset import Activity, MotionSense, Wisdm
-
 datasets = toml.load("config.toml")["dataset"]
 WISDM_PATH = Path(datasets["wisdm"])
 MOTION_SENSE_PATH = Path(datasets["motion-sense"])
-
-
-def main() -> None:
-    import mlflow
-    import mlflow.keras
-    import numpy
-    import keras
-    from keras import Sequential
-    from keras.layers import Dense
+dataset = MotionSense(MOTION_SENSE_PATH)
+datamanager = DataManager(dataset)
+all_data=datamanager.read()
+#windows = datamanager.create_windows(set(Activity), 100, shuffle=True, seed=1, columns=['xaccel_norm', 'yaccel_norm', 'zaccel_norm', 'xrot_norm', 'yrot_norm', 'zrot_norm'])#, bypass_raw="6a3bf91cfb")
+windows = datamanager.create_windows(set(Activity), 100, shuffle=False, seed=1, columns=['xaccel_norm', 'yaccel_norm', 'zaccel_norm', 'xrot_norm', 'yrot_norm', 'zrot_norm', "activity"])#, bypass_raw="6a3bf91cfb")
 
     # numpy.random.seed(1)
 
@@ -118,5 +119,3 @@ def main() -> None:
     #         mlflow.log_metric("score", 4)
 
 
-if __name__ == "__main__":
-    main()
