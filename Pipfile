@@ -24,6 +24,8 @@ mlflow = "*"
 sklearn = "*"
 lightgbm = "*"
 seaborn = "*"
+pydot = "*"
+dash = "*"
 
 [requires]
 python_version = "3.8"
