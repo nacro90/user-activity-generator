@@ -154,8 +154,7 @@ class Plotter:
             col=1,
             zeroline=True,
             zerolinewidth=3,
-            ticksuffix=self.TIME_UNIT,
-            title_text="Time",
+            title_text="Frame",
         )
 
         self.figure.add_trace(
@@ -223,8 +222,7 @@ class Plotter:
             col=2,
             zeroline=True,
             zerolinewidth=3,
-            ticksuffix=self.TIME_UNIT,
-            title_text="Time",
+            title_text="Frame",
         )
 
         return self.figure
@@ -391,3 +389,169 @@ class Plotter:
             self.acc.xyz.apply(dx).cumsum().rename(columns=rename_dict),
             self.POS_COLUMNS,
         )
+
+def make_line_plot_new(fake, real, action: str) -> Figure:
+
+    VERTICAL_SPACING= 0.1
+
+    figure = make_subplots(
+        rows=3,
+        cols=2,
+        shared_xaxes=True,
+        subplot_titles=(
+            [
+                "Real",
+                "Fake",
+            ]
+        ),
+        vertical_spacing=VERTICAL_SPACING,
+        specs=[[{}, {}], [{}, {}], [{}, {}]],
+    )
+
+    figure.layout.title = (
+        f"{round(len(real) / 50, 1)} Seconds acceleration of {action}"
+    )
+
+    figure.add_trace(
+        Scatter(
+            x=tuple(range(len(real))),
+            y=real[:,0],
+            mode="lines",
+            name="Real X",
+        ),
+        row=1,
+        col=1,
+    )
+    figure.add_trace(
+        Scatter(
+            x=tuple(range(len(real))),
+            y=real[:,1],
+            mode="lines",
+            name="Real Y",
+        ),
+        row=2,
+        col=1,
+    )
+    figure.add_trace(
+        Scatter(
+            x=tuple(range(len(real))),
+            y=real[:,2],
+            mode="lines",
+            name="Real Z",
+        ),
+        row=3,
+        col=1,
+    )
+
+    ACCELERATION_UNIT = " m/s²"
+
+    figure.update_yaxes(
+        zeroline=True,
+        zerolinewidth=3,
+        ticksuffix=ACCELERATION_UNIT,
+        title_text="X",
+        range=(-10, 10),
+        row=1,
+        col=1,
+    )
+    figure.update_yaxes(
+        zeroline=True,
+        zerolinewidth=3,
+        ticksuffix=ACCELERATION_UNIT,
+        title_text="Y",
+        range=(-10, 10),
+        row=2,
+        col=1,
+    )
+    figure.update_yaxes(
+        zeroline=True,
+        zerolinewidth=3,
+        ticksuffix=ACCELERATION_UNIT,
+        title_text="Z",
+        range=(-10, 10),
+        row=3,
+        col=1,
+    )
+
+    figure.update_xaxes(
+        row=3,
+        col=1,
+        zeroline=True,
+        zerolinewidth=3,
+        title_text="Frame",
+    )
+
+    #####################################3333
+
+    figure.add_trace(
+        Scatter(
+            x=tuple(range(len(fake))),
+            y=fake[:,0],
+            mode="lines",
+            name="Fake X",
+        ),
+        row=1,
+        col=2,
+    )
+    figure.add_trace(
+        Scatter(
+            x=tuple(range(len(fake))),
+            y=fake[:,1],
+            mode="lines",
+            name="Fake Y",
+        ),
+        row=2,
+        col=2,
+    )
+    figure.add_trace(
+        Scatter(
+            x=tuple(range(len(fake))),
+            y=fake[:,2],
+            mode="lines",
+            name="Fake Z",
+        ),
+        row=3,
+        col=2,
+    )
+
+    ACCELERATION_UNIT = " m/s²"
+
+    figure.update_yaxes(
+        zeroline=True,
+        zerolinewidth=3,
+        ticksuffix=ACCELERATION_UNIT,
+        title_text="X",
+        range=(-10, 10),
+        row=1,
+        col=2,
+    )
+    figure.update_yaxes(
+        zeroline=True,
+        zerolinewidth=3,
+        ticksuffix=ACCELERATION_UNIT,
+        title_text="Y",
+        range=(-10, 10),
+        row=2,
+        col=2,
+    )
+    figure.update_yaxes(
+        zeroline=True,
+        zerolinewidth=3,
+        ticksuffix=ACCELERATION_UNIT,
+        title_text="Z",
+        range=(-10, 10),
+        row=3,
+        col=2,
+    )
+
+    figure.update_xaxes(
+        row=3,
+        col=2,
+        zeroline=True,
+        zerolinewidth=3,
+        ticksuffix="s",
+        title_text="Frame",
+    )
+
+    return figure
+
