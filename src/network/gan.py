@@ -1,58 +1,31 @@
 import os
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import (
-    Any,
-    ClassVar,
-    Dict,
-    Generic,
-    Iterable,
-    Optional,
-    Sequence,
-    Tuple,
-    TypeVar,
-    Union,
-)
+from typing import (Any, ClassVar, Dict, Generic, Iterable, Optional, Sequence,
+                    Tuple, TypeVar, Union)
 
 import mlflow
 import mlflow.keras
 import numpy
 from keras import backend
 from keras.callbacks import EarlyStopping, History, TerminateOnNaN
-from keras.layers import (
-    LSTM,
-    Activation,
-    BatchNormalization,
-    Dense,
-    Dropout,
-    Embedding,
-    Flatten,
-    Input,
-    Lambda,
-    Reshape,
-    ZeroPadding2D,
-    concatenate,
-    multiply,
-)
+from keras.layers import (LSTM, Activation, BatchNormalization, Dense, Dropout,
+                          Embedding, Flatten, Input, Lambda, Reshape,
+                          ZeroPadding2D, concatenate, multiply)
 from keras.layers.advanced_activations import LeakyReLU
 from keras.models import Model, Sequential
 from keras.optimizers import SGD, Adam, Optimizer
+from sklearn.metrics import confusion_matrix
 
 from ..data.window import NumpySequences
-from ..util.measurement import (
-    create_confusion_matrix,
-    create_epoch_measurements,
-    measure,
-    min_euclidean,
-)
-from .discriminator import (
-    Discriminator,
-    EmbeddingDiscriminator,
-    EmbeddingMlpDisc,
-    LabelingDiscriminator,
-    SimpleMlpDisc,
-)
-from .generator import EmbeddingGenerator, EmbeddingMlpGen, Generator, SimpleMlpGen
+from ..util.measurement import (create_confusion_matrix,
+                                create_epoch_measurements, measure,
+                                min_euclidean)
+from .discriminator import (Discriminator, EmbeddingDiscriminator,
+                            EmbeddingMlpDisc, LabelingDiscriminator,
+                            SimpleMlpDisc)
+from .generator import (EmbeddingGenerator, EmbeddingMlpGen, Generator,
+                        SimpleMlpGen)
 
 G = TypeVar("G", bound=Generator)
 D = TypeVar("D", bound=Discriminator)
@@ -273,6 +246,7 @@ class Gan(ABC, Generic[G, D]):
         mlflow.log_metric(Metric.DISTANCE_MIN_EUCLIDEAN.value, dist, epoch)
 
     def log_checkpoint(self, data: NumpySequences, checkpoint_num: int) -> None:
+        print(f"Logging checkpoint {checkpoint_num}")
         mlflow.keras.log_model(self.combined, f"models/gan-{checkpoint_num}")
         mlflow.keras.log_model(self.generator, f"models/generator-{checkpoint_num}")
         mlflow.keras.log_model(
@@ -292,6 +266,38 @@ class Gan(ABC, Generic[G, D]):
             numpy.set_printoptions()
         mlflow.log_artifact(filename)
         os.remove(filename)
+
+    def confusion_from_discriminator(self):
+        pred_all = numpy.array([])
+        real_all = numpy.array([])
+
+        for i in range(self.num_classes):
+            generated = self.generate(self.N_SAMPLES, i).squeeze(axis=0)
+            acc, cls = self.discriminator.predict(generated)
+            pred = cls.argmax(axis=1)
+            real = [i for _ in range(len(cls))]
+            pred_all = numpy.append(pred_all, pred)
+            real_all = numpy.append(real_all, real)
+
+        return confusion_matrix(
+            real_all, pred_all, labels=[i for i in range(self.num_classes)]
+        )
+
+    # def detailed_confusion_from_discriminator(self):
+    #     pred_all = numpy.array([])
+    #     real_all = numpy.array([])
+
+    #     for i in range(self.num_classes):
+    #         generated = self.generate(self.N_SAMPLES, i).squeeze(axis=0)
+    #         acc, cls = self.discriminator.predict(generated)
+    #         pred = cls.argmax(axis=1)
+    #         real = [i for _ in range(len(cls))]
+    #         pred_all = numpy.append(pred_all, pred)
+    #         real_all = numpy.append(real_all, real)
+
+    #     return confusion_matrix(
+    #         real_all, pred_all, labels=[i for i in range(self.num_classes)]
+    #     )
 
     def create_ground_values(
         self, n_samples: int

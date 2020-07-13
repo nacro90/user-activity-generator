@@ -21,6 +21,12 @@ plotly = "*"
 pyarrow = "*"
 tensorflow = "*"
 mlflow = "*"
+sklearn = "*"
+lightgbm = "*"
+seaborn = "*"
+pydot = "*"
+dash = "*"
+flask = "*"
 
 [requires]
 python_version = "3.8"
